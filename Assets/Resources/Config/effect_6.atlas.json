@@ -1,0 +1,153 @@
+
+effect_6.png
+size: 521,528
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+h (1)
+  rotate: false
+  xy: 2, 10
+  size: 85, 72
+  orig: 85, 72
+  offset: 0, 0
+  index: -1
+h (10)
+  rotate: true
+  xy: 349, 3
+  size: 44, 32
+  orig: 44, 32
+  offset: 0, 0
+  index: -1
+h (11)
+  rotate: false
+  xy: 227, 41
+  size: 107, 57
+  orig: 107, 57
+  offset: 0, 0
+  index: -1
+h (13)
+  rotate: false
+  xy: 434, 7
+  size: 29, 47
+  orig: 29, 47
+  offset: 0, 0
+  index: -1
+h (14)
+  rotate: false
+  xy: 264, 6
+  size: 43, 33
+  orig: 43, 33
+  offset: 0, 0
+  index: -1
+h (19)
+  rotate: true
+  xy: 295, 106
+  size: 163, 220
+  orig: 163, 225
+  offset: 0, 0
+  index: -1
+h (2)
+  rotate: false
+  xy: 475, 46
+  size: 38, 26
+  orig: 38, 26
+  offset: 0, 0
+  index: -1
+h (21)
+  rotate: false
+  xy: 383, 7
+  size: 49, 40
+  orig: 49, 40
+  offset: 0, 0
+  index: -1
+h (3)
+  rotate: true
+  xy: 185, 24
+  size: 58, 40
+  orig: 58, 40
+  offset: 0, 0
+  index: -1
+h (4)
+  rotate: true
+  xy: 465, 15
+  size: 29, 27
+  orig: 29, 27
+  offset: 0, 0
+  index: -1
+h (5)
+  rotate: false
+  xy: 494, 21
+  size: 25, 23
+  orig: 25, 24
+  offset: 0, 1
+  index: -1
+h (6)
+  rotate: true
+  xy: 227, 2
+  size: 37, 35
+  orig: 37, 35
+  offset: 0, 0
+  index: -1
+h (7)
+  rotate: false
+  xy: 309, 6
+  size: 38, 33
+  orig: 38, 33
+  offset: 0, 0
+  index: -1
+h (8)
+  rotate: false
+  xy: 336, 49
+  size: 52, 55
+  orig: 52, 55
+  offset: 0, 0
+  index: -1
+h (9)
+  rotate: false
+  xy: 390, 56
+  size: 48, 48
+  orig: 48, 48
+  offset: 0, 0
+  index: -1
+huaban (2)
+  rotate: false
+  xy: 2, 84
+  size: 195, 442
+  orig: 195, 442
+  offset: 0, 0
+  index: -1
+huaban (3)
+  rotate: true
+  xy: 199, 271
+  size: 255, 309
+  orig: 255, 309
+  offset: 0, 0
+  index: -1
+huaban (4)
+  rotate: true
+  xy: 199, 100
+  size: 169, 94
+  orig: 169, 94
+  offset: 0, 0
+  index: -1
+huaban (5)
+  rotate: false
+  xy: 89, 12
+  size: 94, 70
+  orig: 94, 70
+  offset: 0, 0
+  index: -1
+hudie (1)
+  rotate: false
+  xy: 475, 74
+  size: 38, 30
+  orig: 38, 30
+  offset: 0, 0
+  index: -1
+hudie (2)
+  rotate: false
+  xy: 440, 66
+  size: 33, 38
+  orig: 33, 38
+  offset: 0, 0
+  index: -1

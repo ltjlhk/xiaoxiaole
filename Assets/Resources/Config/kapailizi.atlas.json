@@ -1,0 +1,34 @@
+
+kapailizi.png
+size: 420,165
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+lizi (1)
+  rotate: false
+  xy: 236, 8
+  size: 8, 8
+  orig: 8, 8
+  offset: 0, 0
+  index: -1
+lizi (2)
+  rotate: false
+  xy: 220, 2
+  size: 14, 14
+  orig: 16, 16
+  offset: 1, 1
+  index: -1
+lizi (3)
+  rotate: true
+  xy: 220, 18
+  size: 147, 200
+  orig: 147, 200
+  offset: 0, 0
+  index: -1
+lizi (4)
+  rotate: true
+  xy: 0, 0
+  size: 165, 218
+  orig: 165, 218
+  offset: 0, 0
+  index: -1

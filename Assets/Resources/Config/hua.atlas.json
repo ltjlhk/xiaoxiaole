@@ -1,0 +1,160 @@
+
+hua.png
+size: 808,268
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+01
+  rotate: false
+  xy: 247, 107
+  size: 160, 161
+  orig: 223, 232
+  offset: 30, 37
+  index: -1
+02
+  rotate: false
+  xy: 247, 11
+  size: 90, 94
+  orig: 144, 145
+  offset: 27, 27
+  index: -1
+03
+  rotate: false
+  xy: 753, 213
+  size: 55, 55
+  orig: 72, 72
+  offset: 9, 7
+  index: -1
+04
+  rotate: true
+  xy: 731, 55
+  size: 44, 45
+  orig: 72, 72
+  offset: 14, 14
+  index: -1
+05
+  rotate: false
+  xy: 409, 133
+  size: 134, 135
+  orig: 143, 143
+  offset: 5, 4
+  index: -1
+06
+  rotate: false
+  xy: 545, 133
+  size: 133, 135
+  orig: 143, 143
+  offset: 6, 3
+  index: -1
+07
+  rotate: false
+  xy: 431, 0
+  size: 133, 131
+  orig: 143, 143
+  offset: 6, 6
+  index: -1
+08
+  rotate: false
+  xy: 566, 3
+  size: 128, 128
+  orig: 143, 143
+  offset: 8, 6
+  index: -1
+09
+  rotate: true
+  xy: 740, 147
+  size: 52, 61
+  orig: 72, 72
+  offset: 10, 4
+  index: -1
+10
+  rotate: false
+  xy: 0, 20
+  size: 245, 248
+  orig: 256, 256
+  offset: 6, 3
+  index: -1
+11
+  rotate: true
+  xy: 680, 133
+  size: 66, 58
+  orig: 72, 72
+  offset: 3, 7
+  index: -1
+hua
+  rotate: true
+  xy: 339, 14
+  size: 91, 86
+  orig: 174, 148
+  offset: 47, 43
+  index: -1
+huaban (1)
+  rotate: false
+  xy: 778, 36
+  size: 30, 28
+  orig: 35, 30
+  offset: 3, 0
+  index: -1
+huaban (2)
+  rotate: false
+  xy: 778, 66
+  size: 28, 33
+  orig: 37, 42
+  offset: 5, 5
+  index: -1
+huaban (3)
+  rotate: false
+  xy: 731, 25
+  size: 30, 28
+  orig: 45, 42
+  offset: 8, 7
+  index: -1
+huaban (4)
+  rotate: false
+  xy: 696, 102
+  size: 33, 29
+  orig: 59, 31
+  offset: 15, 0
+  index: -1
+huaban (5)
+  rotate: false
+  xy: 696, 71
+  size: 33, 29
+  orig: 38, 32
+  offset: 0, 0
+  index: -1
+huaban (6)
+  rotate: true
+  xy: 696, 40
+  size: 29, 33
+  orig: 45, 53
+  offset: 8, 10
+  index: -1
+huakai (1)
+  rotate: true
+  xy: 740, 101
+  size: 44, 51
+  orig: 200, 200
+  offset: 79, 68
+  index: -1
+huakai (13)
+  rotate: false
+  xy: 680, 201
+  size: 71, 67
+  orig: 200, 200
+  offset: 74, 57
+  index: -1
+huakai_lizi
+  rotate: false
+  xy: 409, 111
+  size: 20, 20
+  orig: 32, 33
+  offset: 6, 7
+  index: -1
+lizi
+  rotate: false
+  xy: 0, 10
+  size: 8, 8
+  orig: 10, 10
+  offset: 1, 1
+  index: -1

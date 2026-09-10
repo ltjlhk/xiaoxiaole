@@ -1,0 +1,27 @@
+
+effect_5.png
+size: 805,434
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+b
+  rotate: false
+  xy: 709, 312
+  size: 18, 20
+  orig: 18, 20
+  offset: 0, 0
+  index: -1
+bing
+  rotate: true
+  xy: 2, 2
+  size: 430, 705
+  orig: 431, 705
+  offset: 0, 0
+  index: -1
+x
+  rotate: false
+  xy: 709, 334
+  size: 94, 98
+  orig: 94, 98
+  offset: 0, 0
+  index: -1
