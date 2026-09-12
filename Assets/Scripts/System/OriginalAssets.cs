@@ -39,7 +39,8 @@ namespace Xio.Assets
         }
 
         /// <summary>加载 Resources/Original/{category}/{name} 精灵，自动裁成方形 sprite。
-        /// 兼容原版 bundle 全路径字段（如 "UI/Fairy/01"）：短名 miss 时取末段重试（"01"）。</summary>
+        /// 兼容原版 bundle 全路径字段（如 "UI/Fairy/01"）：短名 miss 时取末段重试（"01"）；
+        /// 原版贴图名含空格（"collection progress bar"），导出文件名空格已转下划线 → miss 时用下划线重试。</summary>
         public static Sprite Get(string category, string name)
         {
             EnsureNameMap();
@@ -47,6 +48,14 @@ namespace Xio.Assets
             if (_cache.TryGetValue(key, out var s) && s != null) return s;
             string actualName = _nameMap.TryGetValue(key, out var mapped) ? mapped : name;
             var tex = Resources.Load<Texture2D>(ResDir + "/" + category + "/" + actualName);
+            if (tex == null && name.IndexOf(' ') >= 0)
+            {
+                // 空格 → 下划线重试（导出文件名转换）
+                string under = name.Replace(' ', '_');
+                string ukey = category + "/" + under;
+                actualName = _nameMap.TryGetValue(ukey, out mapped) ? mapped : under;
+                tex = Resources.Load<Texture2D>(ResDir + "/" + category + "/" + actualName);
+            }
             if (tex == null)
             {
                 // 全路径字段：取 '/' 后末段重试（FairyIcon "UI/Fairy/01" → "01"）

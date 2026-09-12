@@ -51,14 +51,15 @@ namespace Xio.UI
                 var mrt = (RectTransform)mask.transform;
                 UIHelper.Stretch(mrt);
                 mask.color = new Color(0, 0, 0, 0.55f);
-                var lockIcon = UIHelper.Image(rt, "Lock", OriginalAssets.GetUi("suojin"));
+                // 原版选关未解锁锁头：lock (0,23.3) 37.1×46.7 sp=lockyellow
+                var lockIcon = UIHelper.Image(rt, "Lock", OriginalAssets.GetUi("lockyellow"));
                 if (lockIcon != null)
                 {
                     var lrt = (RectTransform)lockIcon.transform;
                     lrt.anchorMin = lrt.anchorMax = new Vector2(0.5f, 0.5f);
                     lrt.pivot = new Vector2(0.5f, 0.5f);
-                    lrt.sizeDelta = new Vector2(36, 44);
-                    lrt.anchoredPosition = Vector2.zero;
+                    lrt.sizeDelta = new Vector2(37.1f, 46.7f);
+                    lrt.anchoredPosition = new Vector2(0, 23.3f);
                 }
             }
             return btn;
