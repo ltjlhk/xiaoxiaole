@@ -6,23 +6,22 @@ using Xio.UI;
 
 namespace Xio.Game
 {
-    /// <summary>关卡主面板：棋盘（亮格=拼图碎片，暗格=卡牌叠堆）+ 7 槽 + 分数。
-    /// 羊了个羊式叠堆：每暗格一叠卡，只有堆顶可点；3 同图案消除点亮该格。</summary>
+    /// <summary>关卡 3D 渲染层：牌堆（Scene3D.CellWorld 网格塔）+ 7 槽（Droplocation 世界坐标）。
+    /// 一比一复刻原版 level2：正交俯视相机 + 3D Block + 围墙地板；逻辑层 PuzzleGame 不变。</summary>
     public class GamePanel : MonoBehaviour
     {
         public PuzzleGame Game { get; private set; }
 
-        [Header("引用（Bootstrap 注入）")]
-        public Transform boardRoot;   // 棋盘（拼图+卡叠）
-        public Transform slotRoot;
+        [Header("引用（Bootstrap 注入，3D 模式由 Init 覆盖）")]
+        public Transform boardRoot;   // 牌堆容器（BlockParent）
+        public Transform slotRoot;    // 槽定位（Droplocation）
         public Text scoreText;
         public Text titleText;
 
-        private readonly Dictionary<int, Image> _cellImages = new Dictionary<int, Image>(); // 格号->底
-        private readonly List<Image> _slotImages = new List<Image>();
-        private readonly Dictionary<Card, Image> _cardImages = new Dictionary<Card, Image>();
-        private readonly Dictionary<int, Text> _stackBadge = new Dictionary<int, Text>();   // 格号->叠数
-        private Sprite[] _fragSprites;
+        /// <summary>Card → 3D 视图（牌堆牌 + 槽牌共用）。</summary>
+        private readonly Dictionary<Card, Block3D> _viewByCard = new Dictionary<Card, Block3D>();
+        /// <summary>当前槽区视觉（与 Game.Slots 同序）。</summary>
+        private readonly List<Block3D> _slotBlocks = new List<Block3D>();
 
         // 本局统计（EventCenter/任务）
         public int MatchCount;
@@ -57,9 +56,11 @@ namespace Xio.Game
             _combo = 0;
             Game = new PuzzleGame();
             Game.StartGame(level, flowerPool);
+            var s3 = Scene3D.Ensure();
+            boardRoot = s3.BlockParent;
+            slotRoot = s3.Droplocation;
+            ClearAllViews();
             BuildBoard(level);
-            BuildSlots();
-            Game.OnCardCollected += OnCardCollected;
             Game.OnCellLit += OnCellLit;
             Game.OnSlotChanged += OnSlotChanged;
             Game.OnToolUsed += OnToolUsed;
@@ -69,163 +70,111 @@ namespace Xio.Game
             UpdateScoreText();
         }
 
-        private void BuildFragments(PuzzleLevel level, Texture2D tex)
+        private void ClearAllViews()
         {
-            // 纯叠塔模式不再渲染拼图碎片（保留空实现）
+            foreach (var kv in _viewByCard) if (kv.Value != null) SafeDestroy(kv.Value.gameObject);
+            _viewByCard.Clear();
+            _slotBlocks.Clear();
         }
 
-        // ===== 棋盘：纯叠塔（羊了个羊式）=====
+        // ===== 牌堆：3D 网格塔（一暗格一叠，层间错位遮挡，仅堆顶可点）=====
         private void BuildBoard(PuzzleLevel level)
         {
-            foreach (var kv in _cellImages) if (kv.Value != null) SafeDestroy(kv.Value.gameObject);
-            foreach (var kv in _stackBadge) if (kv.Value != null) SafeDestroy(kv.Value.gameObject);
-            foreach (var kv in _cardImages) if (kv.Value != null) SafeDestroy(kv.Value.gameObject);
-            _cellImages.Clear(); _stackBadge.Clear(); _cardImages.Clear();
+            // 销毁牌堆旧视觉（槽区牌 InSlot=true 保留）
+            var dead = new List<Card>();
+            foreach (var kv in _viewByCard)
+                if (kv.Value == null || !kv.Value.InSlot) dead.Add(kv.Key);
+            foreach (var c in dead)
+            {
+                if (_viewByCard[c] != null) SafeDestroy(_viewByCard[c].gameObject);
+                _viewByCard.Remove(c);
+            }
 
-            RectTransform rt = boardRoot as RectTransform;
-            float w = rt.rect.width; if (w < 10) w = rt.sizeDelta.x; if (w < 10) w = 660;
-            float h = rt.rect.height; if (h < 10) h = rt.sizeDelta.y; if (h < 10) h = 700;
-
-            // 叠塔位置：按行列错落排布（近大远小），每叠一沓卡
             int rows = level.Rows, cols = level.Cols;
-            float cw = w / cols, ch = h / rows;
-            // 卡片比格子大：让相邻卡片重叠（叠塔效果）
-            float cardW = Mathf.Min(cw * 1.05f, ch * 0.85f);
-            float cardH = cardW * 1.2f;
-
-            for (int r = 0; r < rows; r++)
-                for (int c = 0; c < cols; c++)
+            foreach (var kv in Game.Stacks)
+            {
+                int g = kv.Key;
+                var st = kv.Value;
+                int r = g / cols, c = g % cols;
+                for (int k = 0; k < st.Count; k++)   // k=0 底层；顶=Count-1
                 {
-                    int g = r * cols + c;
-                    // 叠位底板（淡白描边，非碎片）
-                    var go = new GameObject("Cell_" + g, typeof(RectTransform), typeof(Image));
-                    var img = go.GetComponent<Image>();
-                    var crt = (RectTransform)go.transform;
-                    crt.SetParent(boardRoot, false);
-                    crt.sizeDelta = new Vector2(cw - 4, ch - 4);
-                    crt.anchoredPosition = new Vector2((c + 0.5f) * cw - w / 2, h / 2 - (r + 0.5f) * ch);
-                    img.color = new Color(0.94f, 0.9f, 0.82f, 0.16f);
-                    _cellImages[g] = img;
-
-                    // 叠堆：从底层到顶层依次绘制（顶在上，可见最多）
-                    if (Game.Stacks.TryGetValue(g, out var st))
-                        for (int k = st.Count - 1; k >= 0; k--)
-                            MakeStackCard(st[k], g, crt, cardW, cardH, k, st.Count);
+                    var card = st[k];
+                    var pos = Scene3D.CellWorld(r, c, rows, cols, k);
+                    var blk = Scene3D.CreateBlock(boardRoot, card.TexName, pos);
+                    blk.CellId = g;
+                    blk.Clickable = k == st.Count - 1;   // 仅堆顶可点
+                    blk.OnClick = OnBlockClick;
+                    _viewByCard[card] = blk;
                 }
+            }
         }
 
-        private void MakeStackCard(Card card, int g, RectTransform cellRt, float cardW, float cardH,
-            int depth = 0, int totalCount = 1)
+        private void OnBlockClick(Block3D blk)
         {
-            // 叠堆层次：底层下移更多(露上缘)，顶层在 0 且完整可见
-            float stackOffset = (totalCount - 1 - depth) * -14f;   // 底层 -14*n px
+            if (Game == null || Game.State != GameState.Playing) return;
+            var top = Game.TopCard(blk.CellId);
+            if (top == null) return;
+            if (!_viewByCard.TryGetValue(top, out var v) || v != blk) return;   // 只可点堆顶
 
-            var go = new GameObject("Card_" + g + "_" + depth, typeof(RectTransform), typeof(Image), typeof(Button));
-            var img = go.GetComponent<Image>();
-            var crt = (RectTransform)go.transform;
-            crt.SetParent(cellRt, false);
-            crt.sizeDelta = new Vector2(cardW, cardH);
-            crt.anchoredPosition = new Vector2(0, stackOffset);
-            crt.localRotation = Quaternion.Euler(0, 0, (Mathf.PerlinNoise(g * 1.7f + depth, 3f) - 0.5f) * 4f);
-
-            // ===== 3D 厚度效果（原版青色边）=====
-            // 底层投影（大范围漫射）
-            var shGo = new GameObject("Shadow", typeof(RectTransform), typeof(Image));
-            var sh = shGo.GetComponent<Image>();
-            var shrt = (RectTransform)shGo.transform;
-            shrt.SetParent(crt, false);
-            shrt.anchorMin = shrt.anchorMax = new Vector2(0.5f, 0.5f);
-            shrt.sizeDelta = crt.sizeDelta + new Vector2(8, 8);
-            shrt.anchoredPosition = new Vector2(4, -6);
-            sh.color = new Color(0, 0, 0, 0.28f);
-
-            // 青色厚度边（右+下，模拟 3D 侧面）
-            var edgeGo = new GameObject("Edge3D", typeof(RectTransform), typeof(Image));
-            var edge = edgeGo.GetComponent<Image>();
-            var ert = (RectTransform)edgeGo.transform;
-            ert.SetParent(crt, false);
-            ert.anchorMin = ert.anchorMax = new Vector2(0.5f, 0.5f);
-            ert.sizeDelta = crt.sizeDelta + new Vector2(6, 6);
-            ert.anchoredPosition = new Vector2(3, -3);
-            edge.color = new Color(0.2f, 0.72f, 0.78f, 0.9f);  // 青色
-
-            // 卡底（白色圆角，原版白底卡面）
-            var frameSp = OriginalAssets.GetUi("tools_frame");
-            if (frameSp != null) { img.sprite = frameSp; img.type = Image.Type.Sliced; }
-            img.color = new Color(0.98f, 0.97f, 0.94f, 1f);
-
-            // 花牌图案（居中，保留原版贴图）
-            var flower = OriginalAssets.Get("flower", card.TexName);
-            if (flower != null)
+            blk.Clickable = false;
+            if (Game.ClickCard(top))   // 内部触发 OnSlotChanged → SyncSlots（blk 已在 _viewByCard 中）
             {
-                var iGo = new GameObject("Face", typeof(RectTransform), typeof(Image));
-                var iimg = iGo.GetComponent<Image>();
-                iimg.sprite = flower;
-                iimg.preserveAspect = true;
-                var irt = (RectTransform)iGo.transform;
-                irt.SetParent(crt, false);
-                irt.anchorMin = irt.anchorMax = new Vector2(0.5f, 0.5f);
-                irt.sizeDelta = new Vector2(cardW * 0.78f, cardW * 0.78f);
-                irt.anchoredPosition = new Vector2(0, cardH * 0.04f);
-            }
-
-            // 仅顶层可点（下层不响应点击）
-            bool top = depth == 0;
-            var btn = go.GetComponent<Button>();
-            btn.interactable = top;
-            if (top)
-            {
-                var cardRef = card;
-                btn.onClick.AddListener(() => OnStackClick(cardRef, g));
-            }
-            _cardImages[card] = img;
-        }
-
-        private void OnStackClick(Card card, int g)
-        {
-            if (Game.TopCard(g) != card) return; // 只可点堆顶
-            if (Game.ClickCard(card))
-            {
-                if (_cardImages.TryGetValue(card, out var img) && img != null)
-                {
-                    _cardImages.Remove(card);
-                    SafeDestroy(img.gameObject);
-                }
-                // 刷新角标与下一张顶卡
-                RefreshStack(g);
                 AudioManager.Inst.PlayPick();
+                RefreshStackClickable(blk.CellId);
             }
         }
 
-        private void RefreshStack(int g)
+        /// <summary>堆顶出栈后，新堆顶恢复可点。</summary>
+        private void RefreshStackClickable(int g)
         {
-            // 整叠重建（叠高变了）：先销毁该格全部卡再按新叠重绘
-            if (_cellImages.TryGetValue(g, out var cellImg) && cellImg != null)
+            var top = Game.TopCard(g);
+            if (top == null) return;
+            if (_viewByCard.TryGetValue(top, out var v) && v != null) v.Clickable = true;
+        }
+
+        // ===== 槽区：与 Game.Slots 全量同步（新牌飞入 / 消除消失 / 补位重排）=====
+        private void SyncSlots()
+        {
+            // 目标序列
+            var desired = new List<Block3D>();
+            foreach (var card in Game.Slots)
+                if (_viewByCard.TryGetValue(card, out var b) && b != null) desired.Add(b);
+
+            // 旧槽牌不再在槽中 → 三消/合成移除 → 消失
+            for (int i = _slotBlocks.Count - 1; i >= 0; i--)
             {
-                var crtCell = (RectTransform) cellImg.transform;
-                for (int c = crtCell.childCount - 1; c >= 0; c--)
-                    SafeDestroy(crtCell.GetChild(c).gameObject);
-            }
-            if (Game.Stacks.TryGetValue(g, out var st) && st.Count > 0)
-            {
-                if (_cellImages.TryGetValue(g, out var cellImg2) && cellImg2 != null)
+                var b = _slotBlocks[i];
+                if (b == null) { _slotBlocks.RemoveAt(i); continue; }
+                if (!desired.Contains(b))
                 {
-                    var crt = (RectTransform)cellImg2.transform;
-                    float cardW = crt.sizeDelta.x * 0.92f, cardH = cardW * 1.2f;
-                    for (int k = st.Count - 1; k >= 0; k--)
-                        MakeStackCard(st[k], g, crt, cardW, cardH, k, st.Count);
+                    _slotBlocks.RemoveAt(i);
+                    RemoveViewOf(b);
+                    b.Vanish();
                 }
             }
+
+            // 飞入 / 补位
+            for (int i = 0; i < desired.Count; i++)
+            {
+                var b = desired[i];
+                var target = Scene3D.SlotWorld(i, 0);
+                bool isNew = !b.InSlot;
+                b.InSlot = true;
+                if (!_slotBlocks.Contains(b)) _slotBlocks.Add(b);
+                b.FlyTo(target, isNew ? 0.28f : 0.2f);
+            }
+            UpdateScoreText();
+        }
+
+        private void RemoveViewOf(Block3D b)
+        {
+            var dead = new List<Card>();
+            foreach (var kv in _viewByCard) if (kv.Value == b) dead.Add(kv.Key);
+            foreach (var c in dead) _viewByCard.Remove(c);
         }
 
         private void OnCellLit(int g)
         {
-            // 纯叠塔：消除后该叠清空，底板经络即淡去
-            if (_cellImages.TryGetValue(g, out var img) && img != null)
-            {
-                RefreshStack(g);
-                img.color = new Color(1f, 1f, 1f, 0.05f);
-            }
             AudioManager.Inst.PlayLight();
         }
 
@@ -246,26 +195,13 @@ namespace Xio.Game
                 _combo >= 3 ? new Color(1f, 0.55f, 0.2f) : new Color(1f, 0.95f, 0.6f), _combo >= 3 ? 46 : 36);
         }
 
-        /// <summary>槽位中心（根 Canvas 坐标，供特效定位）。</summary>
+        /// <summary>槽位中心（根 Canvas 坐标，供特效定位）：原版槽区世界 (0,~,-20.5) → 屏幕 (0,-454)。</summary>
         internal Vector2 SlotCenterAnchored()
         {
-            if (slotRoot is RectTransform srt)
-            {
-                var canvas = GetComponentInParent<Canvas>(true);
-                if (canvas != null && canvas.rootCanvas != null)
-                {
-                    var rootRt = (RectTransform)canvas.rootCanvas.transform;
-                    Vector2 world = RectTransformUtility.WorldToScreenPoint(null, srt.position);
-                    RectTransformUtility.ScreenPointToLocalPointInRectangle(rootRt, world, null, out var local);
-                    return local;
-                }
-                return srt.anchoredPosition;
-            }
-            return Vector2.zero;
+            return Scene3D.WorldToScreen(new Vector3(0f, 0f, Scene3D.SlotZ));
         }
 
-        private void OnCardCollected(Card c) { RefreshSlots(); UpdateScoreText(); }
-        private void OnSlotChanged(int count, int cap) { RefreshSlots(); }
+        private void OnSlotChanged(int count, int cap) { SyncSlots(); }
 
         private void OnToolUsed(ToolType t)
         {
@@ -284,81 +220,21 @@ namespace Xio.Game
             else if (t == ToolType.Compose) GameFX.PlaySpineFx("effect_6", SlotCenterAnchored(), 1.4f);
             else if (t == ToolType.Clear) GameFX.PlaySpineFx("effect_3", SlotCenterAnchored(), 1.4f);
             else if (t == ToolType.Shuffle) GameFX.PlaySpineFx("effect_5", SlotCenterAnchored(), 1.4f);
-            // 重建棋盘（叠堆变了）
-            BuildBoard(Game.Level);
-            RefreshSlots();
-        }
 
-        // ===== 槽位 =====
-        private void BuildSlots()
-        {
-            for (int i = _slotImages.Count - 1; i >= 0; i--)
-                if (_slotImages[i] != null) SafeDestroy(_slotImages[i].gameObject);
-            _slotImages.Clear();
-
-            RectTransform rt = slotRoot as RectTransform;
-            float w = rt.rect.width; if (w < 10) w = rt.sizeDelta.x; if (w < 10) w = 690;
-            float h = rt.rect.height; if (h < 10) h = rt.sizeDelta.y; if (h < 10) h = 110;
-            float cw = w / PuzzleGame.SlotCapacity;
-
-            // 原版深绿半透明托盘（已有 Plate 由 GameplayPanel 建）
-            for (int i = 0; i < PuzzleGame.SlotCapacity; i++)
+            if (t == ToolType.Clear)
             {
-                var go = new GameObject("Slot_" + i, typeof(RectTransform), typeof(Image));
-                var img = go.GetComponent<Image>();
-                var crt = (RectTransform)go.transform;
-                crt.SetParent(slotRoot, false);
-                float cw2 = Mathf.Min(cw - 8, h - 6);
-                crt.sizeDelta = new Vector2(cw2, cw2 * 1.18f);
-                crt.anchoredPosition = new Vector2((i + 0.5f) * cw - w / 2, 0);
-                var baseSp = OriginalAssets.GetUi("tools_frame");
-                if (baseSp != null) { img.sprite = baseSp; img.type = Image.Type.Sliced; }
-                img.color = new Color(0.1f, 0.2f, 0.14f, 0.55f);  // 深绿半透明
-                _slotImages.Add(img);
-
-                // 竖线分隔
-                if (i < PuzzleGame.SlotCapacity - 1)
-                {
-                    var div = new GameObject("Div", typeof(RectTransform), typeof(Image));
-                    var dimg = div.GetComponent<Image>();
-                    var drt = (RectTransform)div.transform;
-                    drt.SetParent(slotRoot, false);
-                    drt.anchorMin = drt.anchorMax = new Vector2(0.5f, 0.5f);
-                    drt.sizeDelta = new Vector2(2, h - 10);
-                    drt.anchoredPosition = new Vector2((i + 1) * cw - w / 2, 0);
-                    dimg.color = new Color(1f, 1f, 1f, 0.12f);
-                }
+                // 槽牌退回棋盘：槽牌视觉标记回棋盘 → 重建（旧视图销毁，退回牌重新生成）
+                foreach (var b in _slotBlocks) if (b != null) b.InSlot = false;
+                _slotBlocks.Clear();
+                BuildBoard(Game.Level);
             }
-            RefreshSlots();
-        }
-
-        private void RefreshSlots()
-        {
-            for (int i = 0; i < _slotImages.Count; i++)
+            else if (t == ToolType.Shuffle)
             {
-                var img = _slotImages[i];
-                for (int c = img.transform.childCount - 1; c >= 0; c--)
-                    SafeDestroy(img.transform.GetChild(c).gameObject);
-                var crt = (RectTransform)img.transform;
-                if (i < Game.Slots.Count)
-                {
-                    var card = Game.Slots[i];
-                    img.color = Color.white;
-                    var flower = OriginalAssets.Get("flower", card.TexName);
-                    if (flower != null)
-                    {
-                        var iGo = new GameObject("Face", typeof(RectTransform), typeof(Image));
-                        var iimg = iGo.GetComponent<Image>();
-                        iimg.sprite = flower;
-                        iimg.preserveAspect = true;
-                        var irt = (RectTransform)iGo.transform;
-                        irt.SetParent(crt, false);
-                        irt.anchorMin = irt.anchorMax = new Vector2(0.5f, 0.5f);
-                        irt.sizeDelta = new Vector2(crt.sizeDelta.x * 0.82f, crt.sizeDelta.x * 0.82f);
-                        irt.anchoredPosition = Vector2.zero;
-                    }
-                }
-                else img.color = new Color(0.1f, 0.2f, 0.14f, 0.55f);
+                BuildBoard(Game.Level);          // 棋盘重洗（槽牌保留）
+            }
+            else if (t == ToolType.Compose)
+            {
+                SyncSlots();                     // 槽内消除 → 补位
             }
         }
 

@@ -28,38 +28,17 @@ namespace Xio.UI
 
         protected override void Build()
         {
-            MakeBackground();
+            // 原版 level2：3D 场景（正交俯视相机+围墙地板+7槽）+ UI overlay，无 UI 背景图
+            Scene3D.Ensure();
             MakeTopBar();
             MakeBoardArea();
 
             _gamePanel = Root.gameObject.GetComponent<GamePanel>() ?? Root.gameObject.AddComponent<GamePanel>();
-            _gamePanel.boardRoot = Root.Find("BoardRoot");
-            _gamePanel.slotRoot = Root.Find("SlotRoot");
             _gamePanel.scoreText = _scoreText;
             _gamePanel.titleText = _titleText;
             _gamePanel.onTimeChanged = OnTimeChanged;
 
             StartLevel(LevelId);
-        }
-
-        private void MakeBackground()
-        {
-            // 原版：绿色自然渐变（上浅下深），模拟花园阳光
-            var bg = UIHelper.Image(Root, "BG", null);
-            UIHelper.Stretch((RectTransform)bg.transform);
-            var bgImg = bg.GetComponent<Image>();
-            // 尝试原版贴图，否则用纯色渐变
-            var bgTex = OriginalAssets.GetBackground("bg12");
-            if (bgTex != null)
-            {
-                bgImg.sprite = Sprite.Create(bgTex, new Rect(0, 0, bgTex.width, bgTex.height), new Vector2(0.5f, 0.5f), 100f);
-                bgImg.color = Color.white;
-            }
-            else
-            {
-                // 纯绿渐变（上浅下深）
-                bgImg.color = new Color(0.45f, 0.68f, 0.38f);
-            }
         }
 
         private void MakeTopBar()
@@ -138,22 +117,8 @@ namespace Xio.UI
 
         private void MakeBoardArea()
         {
-            // ===== 原版 res_Game 坐标（750×1334 中心系）=====
-            // 牌区：牌堆顶点 startTransformTop y=+517 → 槽 y=-9 之间
-            var board = UIHelper.NewRect(Root, "BoardRoot");
-            UIHelper.Place(board, new Vector2(0.5f, 0.5f), new Vector2(700, 660), new Vector2(0, 250));
-
-            // 7 槽：startTransformDown (0,658, 底锚) → 屏幕 y=-9，槽悬于牌区前
-            var slot = UIHelper.NewRect(Root, "SlotRoot");
-            UIHelper.Place(slot, new Vector2(0.5f, 0.5f), new Vector2(740, 110), new Vector2(0, -9));
-
-            // 槽底衬（复刻辅助，原版无）
-            var plate = UIHelper.Image(slot, "Plate");
-            UIHelper.Stretch((RectTransform)plate.transform);
-            var pimg = plate.GetComponent<Image>();
-            var plateSp = OriginalAssets.GetUi("dibuheisebanyuandi");
-            if (plateSp != null) { pimg.sprite = plateSp; pimg.type = Image.Type.Sliced; }
-            pimg.color = new Color(0.06f, 0.1f, 0.16f, 0.35f);
+            // ===== 原版 level2 3D 牌区（Scene3D 已建：相机/围墙/地板/Droplocation 7 槽/BlockParent）=====
+            // 顶栏底(+534) ↔ 后墙屏幕 y=+513；槽区 y=-454 ↔ 道具栏顶(-507)，严丝合缝。
 
             // 底部衬条 imgBtnDi：stretch-bottom h=100 y=50，sp=Home_panel_01
             var btnDi = UIHelper.Image(Root, "BtnDi", OriginalAssets.GetUi("Home_panel_01"));
