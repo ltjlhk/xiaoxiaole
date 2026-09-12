@@ -159,10 +159,11 @@ namespace Xio.Game
             PaintOpaque(body, new Color(0.97f, 0.95f, 0.9f));
 
             // 牌面（朝上 Quad，贴花牌贴图，透明队列不写深度）
+            // 原版 Plane001 rot=(-0.707,0,-0.0,0.707)=Euler(-90,0,0)：法线朝上，俯视可见
             var face = GameObject.CreatePrimitive(PrimitiveType.Quad);
             face.name = "Face";
             face.transform.SetParent(go.transform, false);
-            face.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            face.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
             face.transform.localPosition = new Vector3(0f, BlockSize.y / 2f + 0.01f, 0f);
             face.transform.localScale = new Vector3(BlockSize.x - 0.18f, BlockSize.z - 0.22f, 1f);
             var col = face.GetComponent<MeshCollider>();
@@ -238,10 +239,7 @@ namespace Xio.Game
 
         private void OnMouseDown()
         {
-            // UI（道具栏/顶栏/弹窗）命中时 3D 不响应（原版 UIManager 层级同理）
-            var es = UnityEngine.EventSystems.EventSystem.current;
-            if (es != null && es.IsPointerOverGameObject()) return;
-            if (Clickable && OnClick != null) OnClick(this);
+            // 兜底：GamePanel 主动射线为主（UI 混合 3D 下 OnMouseDown 不可靠），此处不处理避免双触发
         }
 
         /// <summary>飞入槽（贝塞尔：起点→中点抬高→终点）。</summary>

@@ -38,13 +38,38 @@ namespace Xio.Game
             else DestroyImmediate(obj);
         }
 
-        /// <summary>每帧驱动：倒计时（原版 08:00）+ 冻结状态。时间耗尽由 Game 判负。</summary>
+        /// <summary>每帧驱动：倒计时（原版 08:00）+ 冻结状态 + 3D 主动射线点击。时间耗尽由 Game 判负。</summary>
         private void Update()
         {
             if (Game == null) return;
             Game.Tick(Time.deltaTime);
             if (onTimeChanged != null && Game.State == GameState.Playing)
                 onTimeChanged(Game.TimeLeft, Game.TimeFrozen);
+            HandleClick();
+        }
+
+        /// <summary>3D 点击：UI 命中优先跳过，否则相机射线取最近 Block（OnMouseDown 在 UI 混合 3D 场景不可靠）。</summary>
+        private void HandleClick()
+        {
+            if (!Input.GetMouseButtonDown(0)) return;
+            if (Game.State != GameState.Playing) return;
+            var es = UnityEngine.EventSystems.EventSystem.current;
+            if (es != null && es.IsPointerOverGameObject()) return;   // UI（道具栏/顶栏/弹窗）优先
+            var cam = Scene3D.Inst != null ? Scene3D.Inst.Cam : Camera.main;
+            if (cam == null) return;
+
+            Ray ray = cam.ScreenPointToRay(Input.mousePosition);
+            var hits = Physics.RaycastAll(ray, 100f);
+            if (hits.Length == 0) return;
+            System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+            foreach (var h in hits)
+            {
+                var blk = h.collider.GetComponentInParent<Block3D>();
+                if (blk == null) continue;               // 墙/地板/托盘：继续找牌
+                // 第一个命中的牌：可点则收，不可点（非堆顶）则停——模拟实体遮挡不穿透
+                if (blk.Clickable) OnBlockClick(blk);
+                return;
+            }
         }
 
         /// <summary>时间展示回调（GameplayPanel 顶栏注入）。</summary>
