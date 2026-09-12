@@ -118,11 +118,11 @@ namespace Xio.Game
             {
                 int g = kv.Key;
                 var st = kv.Value;
-                int r = g / cols, c = g % cols;
                 for (int k = 0; k < st.Count; k++)   // k=0 底层；顶=Count-1
                 {
                     var card = st[k];
-                    var pos = Scene3D.CellWorld(r, c, rows, cols, k);
+                    // 原版 GameMgr 固定 49 格牌位表（slot=0..48），关卡只占用部分格
+                    var pos = Scene3D.BoardSlotWorld(g, k);
                     var blk = Scene3D.CreateBlock(boardRoot, card.TexName, pos);
                     blk.CellId = g;
                     blk.Clickable = k == st.Count - 1;   // 仅堆顶可点

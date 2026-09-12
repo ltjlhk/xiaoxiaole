@@ -106,24 +106,53 @@ namespace Xio.Game
                     for (int k = 0; k < 3; k++)
                         allCards.Add(new Card { PatternId = i, TexName = tex, GridIndex = -1 });
                 }
-                // 随机分配叠放位置：均分到各暗格（每格 3 张），乱序
-                for (int i = allCards.Count - 1; i > 0; i--)
-                {
-                    int j = _rng.Next(i + 1);
-                    (allCards[i], allCards[j]) = (allCards[j], allCards[i]);
-                }
-                for (int i = 0; i < allCards.Count; i++)
-                {
-                    var c = allCards[i];
-                    c.GridIndex = PendingCells[i % need];
-                    Cards.Add(c);
-                }
-                // 建叠堆
-                foreach (var g in PendingCells) Stacks[g] = new List<Card>();
-                foreach (var c in Cards) Stacks[c.GridIndex].Add(c);
+                // 原版羊式满格散放：卡均匀分配到 49 牌位（GameMgr 表数据），位序随机
+            foreach (var c in allCards) Cards.Add(c);
+                ScatterToBoard();
             }
 
             SetState(GameState.Playing);
+        }
+
+        /// <summary>场上所有卡随机均匀散放到 49 牌位（原版 GameMgr 布局：满格多层塔）。
+        /// GridIndex 语义 = 牌位索引 0..48；乱序卡 + 乱序牌位 → 均匀层数。</summary>
+        private void ScatterToBoard()
+        {
+            int slots = Scene3D.BoardSlots;
+            for (int s = 0; s < slots; s++)
+                if (!Stacks.ContainsKey(s)) Stacks[s] = new List<Card>();
+            var deadKeys = new List<int>();
+            foreach (var k in Stacks.Keys) if (k < 0 || k >= slots) deadKeys.Add(k);
+            foreach (var k in deadKeys) Stacks.Remove(k);
+            foreach (var s in Stacks.Values) s.Clear();
+            // 卡乱序
+            var all = new List<Card>(Cards);
+            for (int i = all.Count - 1; i > 0; i--)
+            {
+                int j = _rng.Next(i + 1);
+                (all[i], all[j]) = (all[j], all[i]);
+            }
+            // 牌位乱序
+            var order = new List<int>();
+            for (int s = 0; s < slots; s++) order.Add(s);
+            for (int i = slots - 1; i > 0; i--)
+            {
+                int j = _rng.Next(i + 1);
+                (order[i], order[j]) = (order[j], order[i]);
+            }
+            // 均匀散放：前 extra 牌位多 1 张（层数 ≤ MaxStackPerSlot）
+            int n = all.Count, baseCnt = n / slots, extra = n % slots;
+            int idx = 0;
+            for (int s = 0; s < slots; s++)
+            {
+                int cnt = baseCnt + (s < extra ? 1 : 0);
+                for (int k = 0; k < cnt; k++)
+                {
+                    var c = all[idx++];
+                    c.GridIndex = order[s];
+                    Stacks[c.GridIndex].Add(c);
+                }
+            }
         }
 
         /// <summary>堆顶卡（可点）。无卡返回 null。</summary>
@@ -206,23 +235,10 @@ namespace Xio.Game
                     Slots.Clear();
                     break;
 
-                case ToolType.Shuffle: // 刷新：棋盘叠堆重洗（卡随机换格）
+                case ToolType.Shuffle: // 刷新：棋盘全部重散到 49 牌位
                 {
-                    var all = new List<Card>(Cards);
-                    if (all.Count == 0) return false;
-                    foreach (var g in PendingCells) Stacks[g].Clear();
-                    for (int i = all.Count - 1; i > 0; i--)
-                    {
-                        int j = _rng.Next(i + 1);
-                        (all[i], all[j]) = (all[j], all[i]);
-                    }
-                    for (int i = 0; i < all.Count; i++)
-                    {
-                        var c = all[i];
-                        c.GridIndex = PendingCells[i % PendingCells.Count];
-                        Cards[i] = c;
-                        Stacks[c.GridIndex].Add(c);
-                    }
+                    if (Cards.Count == 0) return false;
+                    ScatterToBoard();
                     break;
                 }
 

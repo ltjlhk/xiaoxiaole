@@ -26,14 +26,29 @@ namespace Xio.Game
         public const float FlyY = 5.58f;
         /// <summary>牌尺寸（槽碰撞体反推：宽 2.9 / 深 3.8 / 厚 1.34）。</summary>
         public static readonly Vector3 BlockSize = new Vector3(2.9f, 1.34f, 3.8f);
-        /// <summary>牌堆网格间距（= 槽间距 3.91）。</summary>
-        public const float GridStep = 3.91f;
+
+        // ===== 原版 GameMgr 牌位表（level2 dump 0x198/0x394 精确数据）=====
+        /// <summary>49 格牌位（7×7 满格）：列 x 间距 3.9，行 z 间距 4.8。</summary>
+        public static readonly float[] BoardX49 = { -11.7f, -7.8f, -3.9f, 0f, 3.9f, 7.8f, 11.7f };
+        public static readonly float[] BoardZ49 = { -14.4f, -9.6f, -4.8f, 0f, 4.8f, 9.6f, 14.4f };
+        /// <summary>牌堆牌位总数。</summary>
+        public const int BoardSlots = 49;
+        /// <summary>每牌位最大叠层数（GameMgr 参数 8）。</summary>
+        public const int MaxStackPerSlot = 8;
 
         public static Scene3D Inst { get; private set; }
         public Transform BlockParent;    // 牌容器
         public Transform Droplocation;   // 7 槽
         public Transform MovePath;       // 飞行路径点
         public Camera Cam;
+
+        /// <summary>编辑模式 DestroyImmediate（DiagShot 批处理验证），Play 用 Destroy。</summary>
+        private static void SafeDestroy(Object obj)
+        {
+            if (obj == null) return;
+            if (Application.isPlaying) Object.Destroy(obj);
+            else Object.DestroyImmediate(obj);
+        }
 
         public static Scene3D Ensure()
         {
@@ -66,34 +81,26 @@ namespace Xio.Game
             if (camGo.GetComponent<AudioListener>() == null) camGo.AddComponent<AudioListener>();
 
             // ===== Build：地板 + 四墙（Unity Cube，原版 mesh 即单位立方体放大）=====
-            MakeCube("Floor", new Vector3(0f, -1.55f, -2f), new Vector3(45f, 1f, 90f),
-                Quaternion.Euler(0f, 180f, 0f), new Color(0.62f, 0.55f, 0.44f));
+            // 材质数据源 tools/mat_*.json：Floor=_MainTex cjbg3(512×1024 草地) _Color 0.94 灰；
+            // Wall=无贴图纯白。地板 45×90 与贴图 1:2 完全同比例 → Cube 顶面 UV 0-1 直接整张贴。
+            MakeTexCube("Floor", new Vector3(0f, -1.55f, -2f), new Vector3(45f, 1f, 90f),
+                Quaternion.Euler(0f, 180f, 0f), "Original/ui/cjbg3");
             MakeCube("WallLeft", new Vector3(-14.4f, 6f, 0f), new Vector3(0.42f, 27.81f, 57.42f),
-                Quaternion.identity, new Color(0.78f, 0.74f, 0.66f));
+                Quaternion.identity, new Color(1f, 1f, 1f));
             MakeCube("WallRight", new Vector3(14.4f, 6f, 0f), new Vector3(0.67f, 27.81f, 57.9f),
-                Quaternion.identity, new Color(0.78f, 0.74f, 0.66f));
+                Quaternion.identity, new Color(1f, 1f, 1f));
             MakeCube("WallDown", new Vector3(0f, 5.61f, -17.2f), new Vector3(0.42f, 27.81f, 49.8f),
-                Quaternion.Euler(0f, 90f, 0f), new Color(0.78f, 0.74f, 0.66f));
+                Quaternion.Euler(0f, 90f, 0f), new Color(1f, 1f, 1f));
             MakeCube("WallUp", new Vector3(0f, 5.61f, 17.2f), new Vector3(0.42f, 27.81f, 57.5f),
-                Quaternion.Euler(0f, 90f, 0f), new Color(0.78f, 0.74f, 0.66f));
+                Quaternion.Euler(0f, 90f, 0f), new Color(1f, 1f, 1f));
 
-            // 中心装饰 Cylinder（原版 0,22.87,6 rot x90 scale1.5）
-            var cyl = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            cyl.name = "Cylinder";
-            cyl.transform.SetParent(transform, false);
-            cyl.transform.position = new Vector3(0f, 22.87f, 6f);
-            cyl.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
-            cyl.transform.localScale = new Vector3(1.5f, 1.5f, 1.5f);
-            Paint(cyl, new Color(0.85f, 0.82f, 0.72f));
+            // 中心 Cylinder：原版为纯 Transform 标记（无 MeshFilter/MeshRenderer）→ 不可见，仅留标记
+            var cylMarker = NewPoint("Cylinder", new Vector3(0f, 22.87f, 6f));
+            cylMarker.SetParent(transform, true);
 
-            // ===== Posall 槽底板（暗色托盘 28.5×5.5，原版 Posall 有 MeshRenderer）=====
-            // 坑：Unlit/Transparent 只采样 _MainTex 不乘 _Color，无贴图时渲染成纯白 → 用 Unlit/Color
-            var plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            plate.name = "Posall";
-            plate.transform.position = new Vector3(0f, 0.5f, -20.5f);
-            plate.transform.localScale = new Vector3(28.5f, 0.1f, 5.5f);
-            Object.Destroy(plate.GetComponent<BoxCollider>());
-            Paint(plate, new Color(0.09f, 0.10f, 0.14f));
+            // ===== Posall 槽底板（贴 bg1_1 深灰半透明托盘 685×117 ≈ 28.5×5.5）=====
+            MakeTexCube("Posall", new Vector3(0f, 0.5f, -20.5f), new Vector3(28.5f, 0.1f, 5.5f),
+                Quaternion.Euler(0f, 180f, 0f), "Original/ui/bg1_1", 3000, true);
 
             // ===== 定位 Transform =====
             Droplocation = NewPoint("Droplocation", new Vector3(0f, 0.5f, -20.5f));
@@ -133,17 +140,14 @@ namespace Xio.Game
             return new Vector3(SlotX[i], SlotY + k * 0.3f, SlotZ);
         }
 
-        /// <summary>牌堆格 (r,c) 层 k 的世界坐标：列对齐槽 x 间距；从后往前；层间错位遮挡。</summary>
-        public static Vector3 CellWorld(int r, int c, int rows, int cols, int k)
+        /// <summary>牌位 slot（0..48）第 k 层的世界坐标：原版 GameMgr 49 格表 + 层间向镜头错位遮挡。
+        /// 布局：列 x ∈ BoardX49（slot%7）、行 z ∈ BoardZ49（slot/7）。</summary>
+        public static Vector3 BoardSlotWorld(int slot, int k)
         {
-            // 动态步距：大棋盘(如 8×8)收窄，保证牌堆不插入侧墙/前墙。
-            // 房间内壁 x±14.19（墙厚 0.42×0.5）、z +16.99/-16.99；块半宽 1.45、半深 1.9。
-            // 可用跨度：宽 2×(14.19-1.45)=25.5，深 14.8..-14.9=29.7。
-            float xStep = cols > 1 ? Mathf.Min(GridStep, 25.5f / (cols - 1)) : 0f;
-            float zStep = rows > 1 ? Mathf.Min(GridStep, 29.7f / (rows - 1)) : 0f;
-            float x = (c - (cols - 1) / 2f) * xStep;
-            float z = 14.5f - r * zStep;
-            // 层间只向镜头方向错位（顶视呈现叠压边缘，不做对角错位——对角会插进邻列/侧墙）
+            int c = slot % 7, r = slot / 7;
+            float x = BoardX49[c];
+            float z = BoardZ49[r];
+            // 层间向镜头方向错位（顶视呈现叠压边缘），层高 0.6 与原版塔高一致
             float y = 0.6f + k * 0.6f;
             return new Vector3(x, y, z - k * 0.3f);
         }
@@ -155,13 +159,13 @@ namespace Xio.Game
             go.transform.SetParent(parent, false);
             go.transform.position = worldPos;
 
-            // 体块（白玉牌身）。原版 level2 无 Light 组件=无光照 shader → Unlit（Diffuse 无灯会渲染成深灰）
+            // 体块（原版 NewCubeDefault：Standard 白色 _Color(1,1,1) 无贴图，顶面受光≈纯白）
             var body = GameObject.CreatePrimitive(PrimitiveType.Cube);
             body.name = "Body";
             body.transform.SetParent(go.transform, false);
             body.transform.localScale = BlockSize;
             Object.Destroy(body.GetComponent<BoxCollider>());   // 根碰撞体接管
-            Paint(body, new Color(0.97f, 0.95f, 0.9f));
+            Paint(body, new Color(1f, 1f, 1f));
 
             // 牌面（朝上 Quad，贴花牌贴图，透明队列不写深度）
             // Unity Quad 法线朝 -Z：R_x(+90) 把法线转到 +Y（朝上，俯视可见）。
@@ -220,6 +224,34 @@ namespace Xio.Game
             go.transform.localScale = scale;
             go.transform.rotation = rot;
             Paint(go, color);
+            return go;
+        }
+
+        /// <summary>贴图 Cube（顶面 UV 0-1 整张贴图）。resPath 相对 Resources，无扩展名。</summary>
+        private static GameObject MakeTexCube(string name, Vector3 pos, Vector3 scale, Quaternion rot,
+            string resPath, int renderQueue = 2000, bool transparent = false)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = name;
+            go.transform.position = pos;
+            go.transform.localScale = scale;
+            go.transform.rotation = rot;
+            var col = go.GetComponent<BoxCollider>();
+            if (col != null) Object.Destroy(col);
+            var tex = Resources.Load<Texture2D>(resPath);
+            var r = go.GetComponent<MeshRenderer>();
+            if (tex != null)
+            {
+                var shader = transparent ? Shader.Find("Unlit/Transparent") : Shader.Find("Unlit/Texture");
+                var mat = new Material(shader) { mainTexture = tex };
+                if (renderQueue != 2000) mat.renderQueue = renderQueue;
+                r.sharedMaterial = mat;
+            }
+            else
+            {
+                Debug.LogWarning("[Scene3D] 贴图缺失: " + resPath);
+                Paint(go, new Color(0.5f, 0.5f, 0.5f));
+            }
             return go;
         }
 
