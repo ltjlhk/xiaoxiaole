@@ -15,7 +15,6 @@ namespace Xio.Game
         [Header("引用（Bootstrap 注入，3D 模式由 Init 覆盖）")]
         public Transform boardRoot;   // 牌堆容器（BlockParent）
         public Transform slotRoot;    // 槽定位（Droplocation）
-        public Text scoreText;
         public Text titleText;
 
         /// <summary>Card → 3D 视图（牌堆牌 + 槽牌共用）。</summary>
@@ -92,7 +91,6 @@ namespace Xio.Game
             Game.OnPatternMatched += OnPatternMatched;
             Game.OnStateChanged += OnStateChanged;
             // 标题由 GameplayPanel 设置（第 X 关），此处不覆盖
-            UpdateScoreText();
         }
 
         private void ClearAllViews()
@@ -188,7 +186,6 @@ namespace Xio.Game
                 if (!_slotBlocks.Contains(b)) _slotBlocks.Add(b);
                 b.FlyTo(target, isNew ? 0.28f : 0.2f);
             }
-            UpdateScoreText();
         }
 
         private void RemoveViewOf(Block3D b)
@@ -263,17 +260,10 @@ namespace Xio.Game
             }
         }
 
-        private void UpdateScoreText()
-        {
-            if (scoreText != null)
-                scoreText.text = $"分数 {Game.Score}  |  剩 {Game.PendingCells.Count}";
-        }
-
         private void OnStateChanged(GameState s)
         {
             if (s == GameState.Win)
             {
-                if (scoreText != null) scoreText.text = "拼图完成！得分 " + Game.Score;
                 // 原版特效：星从牌区飞向顶栏星标（星数+1 的视觉化）；顶锚(-34,-129) → 中心系 y=+538
                 GameFX.FlyStar(SlotCenterAnchored() + new Vector2(0, 260), new Vector2(-34, 538));
                 GameFX.PlaySpineFx("effect_5", Vector2.zero, 2f);
@@ -287,8 +277,6 @@ namespace Xio.Game
             }
             else if (s == GameState.Lose)
             {
-                bool timeout = Game.TimeLeft <= 0f;
-                if (scoreText != null) scoreText.text = timeout ? "时间到…再试一次" : "槽位满了…用道具或重开";
                 AudioManager.Inst.PlayLose();
             }
         }

@@ -18,7 +18,6 @@ namespace Xio.UI
         public override bool HideBelow => true;
 
         private GamePanel _gamePanel;
-        private Text _scoreText;
         private Text _titleText;
         private Text _coinText;
         private Text _timeText;
@@ -37,7 +36,6 @@ namespace Xio.UI
             MakeBoardArea();
 
             _gamePanel = Root.gameObject.GetComponent<GamePanel>() ?? Root.gameObject.AddComponent<GamePanel>();
-            _gamePanel.scoreText = _scoreText;
             _gamePanel.titleText = _titleText;
             _gamePanel.onTimeChanged = OnTimeChanged;
 
@@ -110,12 +108,7 @@ namespace Xio.UI
             o3.effectDistance = new Vector2(1.5f, -1.5f);
             if (_coinText != null) _coinText.text = SaveManager.Data.coins.ToString();
 
-            // ===== combo 区（原版 y=-457）：剩余组数提示 =====
-            _scoreText = UIHelper.Text(Root, "ScoreText", "--", 24, new Color(1f, 0.98f, 0.9f), FontStyle.Bold, TextAnchor.MiddleCenter);
-            UIHelper.Place(_scoreText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(620, 36), new Vector2(0, -457));
-            var o4 = _scoreText.gameObject.AddComponent<Outline>();
-            o4.effectColor = new Color(0.25f, 0.15f, 0.05f);
-            o4.effectDistance = new Vector2(1.5f, -1.5f);
+            // ===== combo 区（原版 y=-457，原版无文字 → 不创建）=====
         }
 
         private void MakeBoardArea()
@@ -240,7 +233,7 @@ namespace Xio.UI
         public void StartLevel(int levelId)
         {
             LevelId = levelId;
-            if (_scoreText == null || _gamePanel == null) return;
+            if (_gamePanel == null) return;
 
             _settled = false;
 
