@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using Xio.Assets;
+using Xio.UI;
 
 namespace Xio.Game
 {
@@ -23,6 +24,13 @@ namespace Xio.Game
         private readonly Dictionary<int, Text> _stackBadge = new Dictionary<int, Text>();   // 格号->叠数
         private Sprite[] _fragSprites;
 
+        // 本局统计（EventCenter/任务）
+        public int MatchCount;
+        public int ClearCount;
+        public int ShuffleCount;
+        public int ComposeCount;
+        public int FreezeCount;
+
         /// <summary>编辑模式用 DestroyImmediate（批处理验证），Play 用 Destroy。</summary>
         private static void SafeDestroy(Object obj)
         {
@@ -33,6 +41,7 @@ namespace Xio.Game
 
         public void Init(PuzzleLevel level, List<string> flowerPool, Texture2D puzzleTex)
         {
+            MatchCount = ClearCount = ShuffleCount = ComposeCount = FreezeCount = 0;
             Game = new PuzzleGame();
             Game.StartGame(level, flowerPool);
             BuildFragments(level, puzzleTex);
@@ -225,7 +234,12 @@ namespace Xio.Game
             AudioManager.Inst.PlayLight();
         }
 
-        private void OnPatternMatched(int pid, string flowerTex) => AudioManager.Inst.PlayMatch(flowerTex);
+        private void OnPatternMatched(int pid, string flowerTex)
+        {
+            MatchCount++;
+            AudioManager.Inst.PlayMatch(flowerTex);
+            EventCenter.OnMatch?.Invoke(pid);
+        }
 
         private void OnCardCollected(Card c) { RefreshSlots(); UpdateScoreText(); }
         private void OnSlotChanged(int count, int cap) { RefreshSlots(); }
@@ -233,6 +247,15 @@ namespace Xio.Game
         private void OnToolUsed(ToolType t)
         {
             AudioManager.Inst.PlayTool(t);
+            // 原版任务类型：5清扫 6刷新 7合成 8冻结
+            EventCenter.OnToolUsed?.Invoke((int)t + 4);
+            switch (t)
+            {
+                case ToolType.Clear: ClearCount++; break;
+                case ToolType.Shuffle: ShuffleCount++; break;
+                case ToolType.Compose: ComposeCount++; break;
+                case ToolType.Freeze: FreezeCount++; break;
+            }
             // 重建棋盘（叠堆变了）
             BuildBoard(Game.Level);
             RefreshSlots();
@@ -309,7 +332,11 @@ namespace Xio.Game
                 if (scoreText != null) scoreText.text = "拼图完成！得分 " + Game.Score;
                 if (Game.Level.PuzzleReward != null)
                     foreach (var rw in Game.Level.PuzzleReward)
-                        if (rw.Count >= 2) SaveManager.AddItem(rw[0], rw[1]);
+                        if (rw.Count >= 2)
+                        {
+                            if (rw[0] == 0) SaveManager.AddCoins(rw[1]);   // itemId 0 = 金币
+                            else SaveManager.AddItem(rw[0], rw[1]);          // 1-4 道具 / 101+ 碎片
+                        }
             }
             else if (s == GameState.Lose)
             {

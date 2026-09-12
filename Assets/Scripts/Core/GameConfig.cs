@@ -110,16 +110,31 @@ namespace Xio.Game
         public string TaskTxt;
     }
 
+    // ===== 赛季活跃奖励 SeasonActivityRewardConfig =====
+    [Serializable]
+    public class SeasonActivityRewardInfo
+    {
+        public int Id;
+        public int ActiveTarget;
+        public List<List<int>> ActiveReward;  // [[itemId,count],...]
+        public string RewardPic;
+        public int PrizeLevel;
+        public int Season;
+        public int LoopReward;
+    }
+
     // ===== 队伍存档 =====
     [Serializable]
     public class PlayerSave
     {
         public int maxPassedLevel = 0;                  // 已通关最高关（按序解锁）
         public int stars = 0;
-        public int coins = 0;
+        public int coins = 100;  // 初始金币（测试/开发用，二次开发可改）
+        public int activity = 0;                        // 赛季活跃度（活跃奖励阶梯）
         public Dictionary<int, int> items = new Dictionary<int, int>();      // itemId -> count
         public Dictionary<int, int> fairyLevel = new Dictionary<int, int>();  // fairyId -> skill level
         public Dictionary<int, int> seasonProgress = new Dictionary<int, int>();
+        public List<int> claimedTasks = new List<int>();                     // 已领取的赛季任务 Id
         public int currentFairy = 1;
     }
 }

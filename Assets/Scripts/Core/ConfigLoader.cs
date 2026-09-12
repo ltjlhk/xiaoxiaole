@@ -60,5 +60,64 @@ namespace Xio.Game
         }
 
         public static T FromJson<T>(string json) => JsonUtility.FromJson<T>(json);
+
+        // JsonUtility 不支持 List<List<int>> 等嵌套数组，这里提供从字段 JSON 里提取并解析的轻量工具。
+        /// <summary>从对象 JSON 中提取指定键的值子串（如 "SkillUpGrade" → "[[0,1,1,50],...]"），无则返回 null。</summary>
+        public static string ExtractField(string json, string key)
+        {
+            if (string.IsNullOrEmpty(json)) return null;
+            int ki = json.IndexOf("\"" + key + "\"", System.StringComparison.Ordinal);
+            if (ki < 0) return null;
+            int p = ki + key.Length + 2; // 跳过闭合引号
+            int n = json.Length;
+            while (p < n && (json[p] == ' ' || json[p] == '\t' || json[p] == '\r' || json[p] == '\n')) p++;
+            if (p >= n || json[p] != ':') return null;
+            p++;
+            while (p < n && (json[p] == ' ' || json[p] == '\t' || json[p] == '\r' || json[p] == '\n')) p++;
+            if (p >= n) return null;
+            if (json[p] != '[') return null;
+            int depth = 0;
+            int start = p;
+            while (p < n)
+            {
+                if (json[p] == '[') depth++;
+                else if (json[p] == ']')
+                {
+                    depth--;
+                    if (depth == 0) { p++; break; }
+                }
+                p++;
+            }
+            return json.Substring(start, p - start);
+        }
+
+        /// <summary>解析嵌套整数数组 [[a,b,c],[d,e,f]] → List<List<int>>；空数组返回空 List（非 null）。</summary>
+        public static List<List<int>> ParseNestedIntLists(string arr)
+        {
+            var result = new List<List<int>>();
+            if (string.IsNullOrEmpty(arr) || arr.Length < 2) return result;
+            int i = 0;
+            int n = arr.Length;
+            while (i < n)
+            {
+                if (arr[i] != '[') { i++; continue; }
+                i++;
+                var row = new List<int>();
+                while (i < n && arr[i] != ']')
+                {
+                    if (arr[i] == '[' || arr[i] == ',') { i++; continue; }
+                    int s = i;
+                    while (i < n && arr[i] != ',' && arr[i] != ']') i++;
+                    if (i > s)
+                    {
+                        int v;
+                        if (int.TryParse(arr.Substring(s, i - s), out v)) row.Add(v);
+                    }
+                }
+                if (i < n) i++; // 跳过 ']'
+                result.Add(row);
+            }
+            return result;
+        }
     }
 }

@@ -38,7 +38,8 @@ namespace Xio.Assets
             }
         }
 
-        /// <summary>加载 Resources/Original/{category}/{name} 精灵，自动裁成方形 sprite。</summary>
+        /// <summary>加载 Resources/Original/{category}/{name} 精灵，自动裁成方形 sprite。
+        /// 兼容原版 bundle 全路径字段（如 "UI/Fairy/01"）：短名 miss 时取末段重试（"01"）。</summary>
         public static Sprite Get(string category, string name)
         {
             EnsureNameMap();
@@ -48,6 +49,33 @@ namespace Xio.Assets
             var tex = Resources.Load<Texture2D>(ResDir + "/" + category + "/" + actualName);
             if (tex == null)
             {
+                // 全路径字段：取 '/' 后末段重试（FairyIcon "UI/Fairy/01" → "01"）
+                if (name.IndexOf('/') >= 0)
+                {
+                    string tail = name.Substring(name.LastIndexOf('/') + 1);
+                    string key2 = category + "/" + tail;
+                    if (_nameMap.TryGetValue(key2, out mapped))
+                        tex = Resources.Load<Texture2D>(ResDir + "/" + category + "/" + mapped);
+                    else
+                        tex = Resources.Load<Texture2D>(ResDir + "/" + category + "/" + tail);
+                    if (tex != null)
+                    {
+                        s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                        _cache[key] = s;
+                        return s;
+                    }
+                }
+                // 返回按钮别名：原版 btn_fanhui → 本地 buttonback
+                if (name == "btn_fanhui")
+                {
+                    tex = Resources.Load<Texture2D>(ResDir + "/" + category + "/buttonback");
+                    if (tex != null)
+                    {
+                        s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                        _cache[key] = s;
+                        return s;
+                    }
+                }
                 Debug.LogWarning("[OriginalAssets] missing: " + key + " (tried " + actualName + ")");
                 return null;
             }

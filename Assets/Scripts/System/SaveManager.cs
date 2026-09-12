@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -42,8 +42,12 @@ namespace Xio.Game
         public static void RewardLevel(int levelId)
         {
             var d = Data;
-            int idx = IndexOfLevel(levelId);
-            if (idx > d.maxPassedLevel) d.maxPassedLevel = idx;
+            int idx = LevelSegmentModel.IndexOf(levelId);
+            if (idx != int.MaxValue && idx > d.maxPassedLevel)
+            {
+                d.maxPassedLevel = idx;
+                d.stars += 1;   // 首次通关 +1 星
+            }
             Save();
         }
 
@@ -58,17 +62,53 @@ namespace Xio.Game
         public static void AddStars(int n) { Data.stars += n; Save(); }
         public static void AddCoins(int n) { Data.coins += n; Save(); }
 
-        public static bool IsUnlocked(int levelId)
+        /// <summary>精灵技能等级（默认 0 = 已解锁未升级）。</summary>
+        public static int GetFairySkillLevel(int fairyId)
         {
-            int idx = IndexOfLevel(levelId);
-            return idx <= Data.maxPassedLevel + 1;  // 当前关之后的下一关开放
+            var d = Data;
+            return d.fairyLevel != null && d.fairyLevel.TryGetValue(fairyId, out int lv) ? lv : 0;
         }
 
-        /// <summary>关卡序号：同一精灵主线 101..199 递增，首位 = 100。</summary>
-        private static int IndexOfLevel(int levelId)
+        /// <summary>设置精灵技能等级。</summary>
+        public static void SetFairySkillLevel(int fairyId, int lv)
         {
-            if (levelId >= 101 && levelId <= 1199 && levelId % 100 <= 99) return levelId % 100;   // 101 → 1
-            return levelId;
+            var d = Data;
+            if (d.fairyLevel == null) d.fairyLevel = new Dictionary<int, int>();
+            d.fairyLevel[fairyId] = lv;
+            Save();
+        }
+
+        /// <summary>物品数量（无则 0）。</summary>
+        public static int GetItemCount(int itemId)
+        {
+            var d = Data;
+            return d.items != null && d.items.TryGetValue(itemId, out int c) ? c : 0;
+        }
+
+        /// <summary>赛季活跃度累计（活跃奖励阶梯用）。</summary>
+        public static void AddActivity(int n) { Data.activity += n; Save(); }
+
+        /// <summary>领取赛季任务奖励：入账并标记已领。</summary>
+        public static bool ClaimSeasonTask(int taskId, int rewardCoins)
+        {
+            var d = Data;
+            if (d.claimedTasks == null) d.claimedTasks = new List<int>();
+            if (d.claimedTasks.Contains(taskId)) return false;
+            d.claimedTasks.Add(taskId);
+            d.coins += rewardCoins;
+            Save();
+            return true;
+        }
+
+        public static bool IsTaskClaimed(int taskId)
+        {
+            var d = Data;
+            return d.claimedTasks != null && d.claimedTasks.Contains(taskId);
+        }
+
+        public static bool IsUnlocked(int levelId)
+        {
+            return LevelSegmentModel.IsUnlocked(levelId);  // 全局序：通关上一关后本关开放
         }
     }
 }
