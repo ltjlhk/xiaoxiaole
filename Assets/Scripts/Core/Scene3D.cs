@@ -86,15 +86,14 @@ namespace Xio.Game
             cyl.transform.localScale = new Vector3(1.5f, 1.5f, 1.5f);
             Paint(cyl, new Color(0.85f, 0.82f, 0.72f));
 
-            // ===== Posall 槽底板（黑色半透明托盘 28.5×5.5，原版 Posall 有 MeshRenderer）=====
+            // ===== Posall 槽底板（暗色托盘 28.5×5.5，原版 Posall 有 MeshRenderer）=====
+            // 坑：Unlit/Transparent 只采样 _MainTex 不乘 _Color，无贴图时渲染成纯白 → 用 Unlit/Color
             var plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
             plate.name = "Posall";
             plate.transform.position = new Vector3(0f, 0.5f, -20.5f);
             plate.transform.localScale = new Vector3(28.5f, 0.1f, 5.5f);
             Object.Destroy(plate.GetComponent<BoxCollider>());
-            var pmr = plate.GetComponent<MeshRenderer>();
-            pmr.sharedMaterial = new Material(Shader.Find("Unlit/Transparent"))
-            { color = new Color(0.07f, 0.09f, 0.14f, 0.85f) };
+            Paint(plate, new Color(0.09f, 0.10f, 0.14f));
 
             // ===== 定位 Transform =====
             Droplocation = NewPoint("Droplocation", new Vector3(0f, 0.5f, -20.5f));
@@ -137,10 +136,16 @@ namespace Xio.Game
         /// <summary>牌堆格 (r,c) 层 k 的世界坐标：列对齐槽 x 间距；从后往前；层间错位遮挡。</summary>
         public static Vector3 CellWorld(int r, int c, int rows, int cols, int k)
         {
-            float x = (c - (cols - 1) / 2f) * GridStep;
-            float z = 14.5f - r * GridStep;
+            // 动态步距：大棋盘(如 8×8)收窄，保证牌堆不插入侧墙/前墙。
+            // 房间内壁 x±14.19（墙厚 0.42×0.5）、z +16.99/-16.99；块半宽 1.45、半深 1.9。
+            // 可用跨度：宽 2×(14.19-1.45)=25.5，深 14.8..-14.9=29.7。
+            float xStep = cols > 1 ? Mathf.Min(GridStep, 25.5f / (cols - 1)) : 0f;
+            float zStep = rows > 1 ? Mathf.Min(GridStep, 29.7f / (rows - 1)) : 0f;
+            float x = (c - (cols - 1) / 2f) * xStep;
+            float z = 14.5f - r * zStep;
+            // 层间只向镜头方向错位（顶视呈现叠压边缘，不做对角错位——对角会插进邻列/侧墙）
             float y = 0.6f + k * 0.6f;
-            return new Vector3(x + k * 0.35f, y, z - k * 0.45f);
+            return new Vector3(x, y, z - k * 0.3f);
         }
 
         /// <summary>创建 3D 花牌方块（体块 Cube + 牌面 Quad + 根 BoxCollider + 点击）。</summary>

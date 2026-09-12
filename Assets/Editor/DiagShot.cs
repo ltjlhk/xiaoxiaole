@@ -66,7 +66,22 @@ namespace Xio.EditorTools
                 var rt = new RenderTexture(W, H, 24);
                 cam.targetTexture = rt;
                 RenderTexture.active = rt;
+
+                // ScreenSpaceOverlay 不经过 Camera.Render() → 截图无 UI。
+                // 临时切到 Camera 模式（planeDistance 5，位于 3D 之上）连 UI 一起渲染，拍完恢复。
+                var canvases = UnityEngine.Object.FindObjectsOfType<Canvas>();
+                var changed = new System.Collections.Generic.List<Canvas>();
+                foreach (var cv in canvases)
+                    if (cv.renderMode == RenderMode.ScreenSpaceOverlay && cv.isRootCanvas)
+                    {
+                        cv.renderMode = RenderMode.ScreenSpaceCamera;
+                        cv.worldCamera = cam;
+                        cv.planeDistance = 5f;
+                        changed.Add(cv);
+                    }
+                Canvas.ForceUpdateCanvases();
                 cam.Render();
+                foreach (var cv in changed) cv.renderMode = RenderMode.ScreenSpaceOverlay;
                 var tex = new Texture2D(W, H, TextureFormat.RGBA32, false);
                 tex.ReadPixels(new Rect(0, 0, W, H), 0, 0);
                 tex.Apply();
