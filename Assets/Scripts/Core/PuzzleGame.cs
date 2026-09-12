@@ -35,6 +35,14 @@ namespace Xio.Game
         public int Score { get; private set; }
         public int ClickCount { get; private set; }
 
+        // ===== 限时（原版 08:00）=====
+        public const float DefaultTimeLimit = 480f;      // 默认 8 分钟
+        public const float FreezeDuration = 8f;          // 冻结=暂停计时 8 秒
+        public float TimeLimit = DefaultTimeLimit;
+        public float TimeLeft = DefaultTimeLimit;
+        public bool TimeFrozen;
+        public float FreezeRemain;
+
         public event Action<Card> OnCardCollected;
         public event Action<int, int> OnSlotChanged;
         public event Action<int> OnCellLit;               // 点亮的格索引
@@ -66,6 +74,12 @@ namespace Xio.Game
             Stacks.Clear();
             _patternByGrid.Clear();
             LitCells = new bool[n];
+            // 限时：配置 TimeLimit>0 用之，否则默认 8 分钟
+            float tl = level != null ? level.TimeLimit : 0f;
+            TimeLimit = tl > 0f ? tl : DefaultTimeLimit;
+            TimeLeft = TimeLimit;
+            TimeFrozen = false;
+            FreezeRemain = 0f;
 
             // 初始点亮：格 g 放 PuzzleStart[g] 碎片，碎片在 PuzzleShow 中 → 点亮
             for (int g = 0; g < n; g++)
@@ -227,21 +241,34 @@ namespace Xio.Game
                     break;
                 }
 
-                case ToolType.Freeze:  // 冻结：退回槽位最后 2 张
-                    if (Slots.Count < 2) return false;
-                    for (int k = 0; k < 2; k++)
-                    {
-                        var c = Slots[Slots.Count - 1];
-                        Slots.RemoveAt(Slots.Count - 1);
-                        Cards.Add(c);
-                        Stacks[c.GridIndex].Add(c);
-                    }
+                case ToolType.Freeze:  // 冻结：暂停倒计时 8 秒（原版）
+                    if (TimeFrozen) return false;
+                    TimeFrozen = true;
+                    FreezeRemain = FreezeDuration;
                     break;
             }
             OnToolUsed?.Invoke(tool);
             OnSlotChanged?.Invoke(Slots.Count, SlotCapacity);
             CheckWin();
             return true;
+        }
+
+        /// <summary>每帧驱动：限时倒计时（冻结时暂停）。归零 → Lose。</summary>
+        public void Tick(float dt)
+        {
+            if (State != GameState.Playing) return;
+            if (TimeFrozen)
+            {
+                FreezeRemain -= dt;
+                if (FreezeRemain <= 0f) TimeFrozen = false;
+                return;
+            }
+            TimeLeft -= dt;
+            if (TimeLeft <= 0f)
+            {
+                TimeLeft = 0f;
+                SetState(GameState.Lose);   // 超时判负（原版）
+            }
         }
 
         private void CheckWin()

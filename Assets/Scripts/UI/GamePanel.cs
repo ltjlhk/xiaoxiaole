@@ -39,12 +39,23 @@ namespace Xio.Game
             else DestroyImmediate(obj);
         }
 
+        /// <summary>每帧驱动：倒计时（原版 08:00）+ 冻结状态。时间耗尽由 Game 判负。</summary>
+        private void Update()
+        {
+            if (Game == null) return;
+            Game.Tick(Time.deltaTime);
+            if (onTimeChanged != null && Game.State == GameState.Playing)
+                onTimeChanged(Game.TimeLeft, Game.TimeFrozen);
+        }
+
+        /// <summary>时间展示回调（GameplayPanel 顶栏注入）。</summary>
+        public System.Action<float, bool> onTimeChanged;
+
         public void Init(PuzzleLevel level, List<string> flowerPool, Texture2D puzzleTex)
         {
             MatchCount = ClearCount = ShuffleCount = ComposeCount = FreezeCount = 0;
             Game = new PuzzleGame();
             Game.StartGame(level, flowerPool);
-            BuildFragments(level, puzzleTex);
             BuildBoard(level);
             BuildSlots();
             Game.OnCardCollected += OnCardCollected;
@@ -53,25 +64,16 @@ namespace Xio.Game
             Game.OnToolUsed += OnToolUsed;
             Game.OnPatternMatched += OnPatternMatched;
             Game.OnStateChanged += OnStateChanged;
+            // 标题由 GameplayPanel 设置（第 X 关），此处不覆盖
             UpdateScoreText();
-            if (titleText != null) titleText.text = "就你会消除";
         }
 
         private void BuildFragments(PuzzleLevel level, Texture2D tex)
         {
-            int cols = Mathf.Max(1, level.Cols), rows = Mathf.Max(1, level.Rows);
-            _fragSprites = new Sprite[cols * rows];
-            if (tex == null) return;
-            float fw = tex.width / (float)cols, fh = tex.height / (float)rows;
-            for (int idx = 0; idx < _fragSprites.Length; idx++)
-            {
-                int r = idx / cols, c = idx % cols;
-                var rect = new Rect(c * fw, tex.height - (r + 1) * fh, fw, fh);
-                _fragSprites[idx] = Sprite.Create(tex, rect, new Vector2(0.5f, 0.5f), 100f);
-            }
+            // 纯叠塔模式不再渲染拼图碎片（保留空实现）
         }
 
-        // ===== 棋盘：亮格显示碎片 / 暗格显示卡叠堆顶 =====
+        // ===== 棋盘：纯叠塔（羊了个羊式）=====
         private void BuildBoard(PuzzleLevel level)
         {
             foreach (var kv in _cellImages) if (kv.Value != null) SafeDestroy(kv.Value.gameObject);
@@ -80,66 +82,78 @@ namespace Xio.Game
             _cellImages.Clear(); _stackBadge.Clear(); _cardImages.Clear();
 
             RectTransform rt = boardRoot as RectTransform;
-            float w = rt.rect.width; if (w < 10) w = rt.sizeDelta.x; if (w < 10) w = 600;
-            float h = rt.rect.height; if (h < 10) h = rt.sizeDelta.y; if (h < 10) h = 740;
+            float w = rt.rect.width; if (w < 10) w = rt.sizeDelta.x; if (w < 10) w = 660;
+            float h = rt.rect.height; if (h < 10) h = rt.sizeDelta.y; if (h < 10) h = 700;
+
+            // 叠塔位置：按行列错落排布（近大远小），每叠一沓卡
             int rows = level.Rows, cols = level.Cols;
             float cw = w / cols, ch = h / rows;
-            float cardW = Mathf.Min(cw * 0.92f, ch * 0.82f);
-            float cardH = cardW * 1.18f;
+            // 卡片比格子大：让相邻卡片重叠（叠塔效果）
+            float cardW = Mathf.Min(cw * 1.05f, ch * 0.85f);
+            float cardH = cardW * 1.2f;
 
             for (int r = 0; r < rows; r++)
                 for (int c = 0; c < cols; c++)
                 {
                     int g = r * cols + c;
-                    // 格底
+                    // 叠位底板（淡白描边，非碎片）
                     var go = new GameObject("Cell_" + g, typeof(RectTransform), typeof(Image));
                     var img = go.GetComponent<Image>();
                     var crt = (RectTransform)go.transform;
                     crt.SetParent(boardRoot, false);
-                    crt.sizeDelta = new Vector2(cw - 3, ch - 3);
+                    crt.sizeDelta = new Vector2(cw - 4, ch - 4);
                     crt.anchoredPosition = new Vector2((c + 0.5f) * cw - w / 2, h / 2 - (r + 0.5f) * ch);
-                    RefreshCell(img, g);
+                    img.color = new Color(0.94f, 0.9f, 0.82f, 0.16f);
                     _cellImages[g] = img;
 
-                    // 暗格上的卡叠堆顶
-                    var top = Game.TopCard(g);
-                    if (top != null) MakeStackCard(top, g, crt, cardW, cardH);
+                    // 叠堆：从底层到顶层依次绘制（顶在上，可见最多）
+                    if (Game.Stacks.TryGetValue(g, out var st))
+                        for (int k = st.Count - 1; k >= 0; k--)
+                            MakeStackCard(st[k], g, crt, cardW, cardH, k, st.Count);
                 }
         }
 
-        private void RefreshCell(Image img, int g)
+        private void MakeStackCard(Card card, int g, RectTransform cellRt, float cardW, float cardH,
+            int depth = 0, int totalCount = 1)
         {
-            int frag = (Game.Level.PuzzleStart != null && g < Game.Level.PuzzleStart.Count)
-                       ? Game.Level.PuzzleStart[g] : g;
-            bool lit = Game.LitCells[g];
-            if (lit && _fragSprites != null && frag < _fragSprites.Length && _fragSprites[frag] != null)
-            {
-                img.sprite = _fragSprites[frag];
-                img.color = Color.white;
-            }
-            else
-            {
-                img.sprite = null;
-                img.color = new Color(0.12f, 0.16f, 0.24f, 0.88f); // 暗格深色底
-            }
-        }
+            // 叠堆层次：底层下移更多(露上缘)，顶层在 0 且完整可见
+            float stackOffset = (totalCount - 1 - depth) * -14f;   // 底层 -14*n px
 
-        private void MakeStackCard(Card card, int g, RectTransform cellRt, float cardW, float cardH)
-        {
-            var go = new GameObject("Card_" + g, typeof(RectTransform), typeof(Image), typeof(Button));
+            var go = new GameObject("Card_" + g + "_" + depth, typeof(RectTransform), typeof(Image), typeof(Button));
             var img = go.GetComponent<Image>();
             var crt = (RectTransform)go.transform;
             crt.SetParent(cellRt, false);
             crt.sizeDelta = new Vector2(cardW, cardH);
-            crt.anchoredPosition = Vector2.zero;
-            crt.localRotation = Quaternion.Euler(0, 0, (Mathf.PerlinNoise(g * 1.7f, 3f) - 0.5f) * 8f);
+            crt.anchoredPosition = new Vector2(0, stackOffset);
+            crt.localRotation = Quaternion.Euler(0, 0, (Mathf.PerlinNoise(g * 1.7f + depth, 3f) - 0.5f) * 4f);
 
-            // 卡底
-            var baseSp = OriginalAssets.GetUi("mp_board");
-            if (baseSp != null) { img.sprite = baseSp; img.type = Image.Type.Sliced; }
-            else img.color = new Color(0.96f, 0.92f, 0.82f);
+            // ===== 3D 厚度效果（原版青色边）=====
+            // 底层投影（大范围漫射）
+            var shGo = new GameObject("Shadow", typeof(RectTransform), typeof(Image));
+            var sh = shGo.GetComponent<Image>();
+            var shrt = (RectTransform)shGo.transform;
+            shrt.SetParent(crt, false);
+            shrt.anchorMin = shrt.anchorMax = new Vector2(0.5f, 0.5f);
+            shrt.sizeDelta = crt.sizeDelta + new Vector2(8, 8);
+            shrt.anchoredPosition = new Vector2(4, -6);
+            sh.color = new Color(0, 0, 0, 0.28f);
 
-            // 花牌图案
+            // 青色厚度边（右+下，模拟 3D 侧面）
+            var edgeGo = new GameObject("Edge3D", typeof(RectTransform), typeof(Image));
+            var edge = edgeGo.GetComponent<Image>();
+            var ert = (RectTransform)edgeGo.transform;
+            ert.SetParent(crt, false);
+            ert.anchorMin = ert.anchorMax = new Vector2(0.5f, 0.5f);
+            ert.sizeDelta = crt.sizeDelta + new Vector2(6, 6);
+            ert.anchoredPosition = new Vector2(3, -3);
+            edge.color = new Color(0.2f, 0.72f, 0.78f, 0.9f);  // 青色
+
+            // 卡底（白色圆角，原版白底卡面）
+            var frameSp = OriginalAssets.GetUi("tools_frame");
+            if (frameSp != null) { img.sprite = frameSp; img.type = Image.Type.Sliced; }
+            img.color = new Color(0.98f, 0.97f, 0.94f, 1f);
+
+            // 花牌图案（居中，保留原版贴图）
             var flower = OriginalAssets.Get("flower", card.TexName);
             if (flower != null)
             {
@@ -150,33 +164,19 @@ namespace Xio.Game
                 var irt = (RectTransform)iGo.transform;
                 irt.SetParent(crt, false);
                 irt.anchorMin = irt.anchorMax = new Vector2(0.5f, 0.5f);
-                irt.sizeDelta = new Vector2(cardW * 0.82f, cardW * 0.82f);
-                irt.anchoredPosition = new Vector2(0, cardH * 0.06f);
+                irt.sizeDelta = new Vector2(cardW * 0.78f, cardW * 0.78f);
+                irt.anchoredPosition = new Vector2(0, cardH * 0.04f);
             }
 
-            // 叠数角标
-            int cnt = Game.Stacks[g].Count;
-            if (cnt > 1)
+            // 仅顶层可点（下层不响应点击）
+            bool top = depth == 0;
+            var btn = go.GetComponent<Button>();
+            btn.interactable = top;
+            if (top)
             {
-                var bGo = new GameObject("Badge", typeof(RectTransform), typeof(Text));
-                var b = bGo.GetComponent<Text>();
-                b.font = Font.CreateDynamicFontFromOSFont(new[] { "Arial" }, 20);
-                b.fontSize = 22;
-                b.fontStyle = FontStyle.Bold;
-                b.color = new Color(1f, 0.85f, 0.2f);
-                b.alignment = TextAnchor.UpperRight;
-                b.text = "x" + cnt;
-                var brt = (RectTransform)bGo.transform;
-                brt.SetParent(crt, false);
-                brt.anchorMin = new Vector2(1, 1); brt.anchorMax = new Vector2(1, 1);
-                brt.pivot = new Vector2(1, 1);
-                brt.sizeDelta = new Vector2(44, 26);
-                brt.anchoredPosition = new Vector2(-3, -3);
-                _stackBadge[g] = b;
+                var cardRef = card;
+                btn.onClick.AddListener(() => OnStackClick(cardRef, g));
             }
-
-            var cardRef = card;
-            go.GetComponent<Button>().onClick.AddListener(() => OnStackClick(cardRef, g));
             _cardImages[card] = img;
         }
 
@@ -198,38 +198,32 @@ namespace Xio.Game
 
         private void RefreshStack(int g)
         {
-            if (_stackBadge.TryGetValue(g, out var b))
+            // 整叠重建（叠高变了）：先销毁该格全部卡再按新叠重绘
+            if (_cellImages.TryGetValue(g, out var cellImg) && cellImg != null)
             {
-                if (b != null && !Game.Stacks.ContainsKey(g)) { SafeDestroy(b.gameObject); _stackBadge.Remove(g); }
-                else if (b != null)
-                {
-                    int cnt = Game.Stacks[g].Count;
-                    if (cnt <= 1) { SafeDestroy(b.gameObject); _stackBadge.Remove(g); }
-                    else b.text = "x" + cnt;
-                }
+                var crtCell = (RectTransform) cellImg.transform;
+                for (int c = crtCell.childCount - 1; c >= 0; c--)
+                    SafeDestroy(crtCell.GetChild(c).gameObject);
             }
-            // 新堆顶浮现
-            var top = Game.TopCard(g);
-            if (top != null && !_cardImages.ContainsKey(top))
+            if (Game.Stacks.TryGetValue(g, out var st) && st.Count > 0)
             {
-                if (_cellImages.TryGetValue(g, out var cellImg) && cellImg != null)
+                if (_cellImages.TryGetValue(g, out var cellImg2) && cellImg2 != null)
                 {
-                    var crt = (RectTransform)cellImg.transform;
-                    float cardW = crt.sizeDelta.x * 0.92f, cardH = cardW * 1.18f;
-                    MakeStackCard(top, g, crt, cardW, cardH);
+                    var crt = (RectTransform)cellImg2.transform;
+                    float cardW = crt.sizeDelta.x * 0.92f, cardH = cardW * 1.2f;
+                    for (int k = st.Count - 1; k >= 0; k--)
+                        MakeStackCard(st[k], g, crt, cardW, cardH, k, st.Count);
                 }
             }
         }
 
         private void OnCellLit(int g)
         {
+            // 纯叠塔：消除后该叠清空，底板经络即淡去
             if (_cellImages.TryGetValue(g, out var img) && img != null)
             {
-                RefreshCell(img, g);
-                // 清掉该格残余卡（理论无）
-                var top = Game.TopCard(g);
-                if (top == null && _stackBadge.TryGetValue(g, out var b) && b != null)
-                { SafeDestroy(b.gameObject); _stackBadge.Remove(g); }
+                RefreshStack(g);
+                img.color = new Color(1f, 1f, 1f, 0.05f);
             }
             AudioManager.Inst.PlayLight();
         }
@@ -272,6 +266,8 @@ namespace Xio.Game
             float w = rt.rect.width; if (w < 10) w = rt.sizeDelta.x; if (w < 10) w = 690;
             float h = rt.rect.height; if (h < 10) h = rt.sizeDelta.y; if (h < 10) h = 110;
             float cw = w / PuzzleGame.SlotCapacity;
+
+            // 原版深绿半透明托盘（已有 Plate 由 GameplayPanel 建）
             for (int i = 0; i < PuzzleGame.SlotCapacity; i++)
             {
                 var go = new GameObject("Slot_" + i, typeof(RectTransform), typeof(Image));
@@ -281,10 +277,23 @@ namespace Xio.Game
                 float cw2 = Mathf.Min(cw - 8, h - 6);
                 crt.sizeDelta = new Vector2(cw2, cw2 * 1.18f);
                 crt.anchoredPosition = new Vector2((i + 0.5f) * cw - w / 2, 0);
-                var baseSp = OriginalAssets.GetUi("mp_board");
+                var baseSp = OriginalAssets.GetUi("tools_frame");
                 if (baseSp != null) { img.sprite = baseSp; img.type = Image.Type.Sliced; }
-                img.color = new Color(0.5f, 0.5f, 0.5f, 0.35f);
+                img.color = new Color(0.1f, 0.2f, 0.14f, 0.55f);  // 深绿半透明
                 _slotImages.Add(img);
+
+                // 竖线分隔
+                if (i < PuzzleGame.SlotCapacity - 1)
+                {
+                    var div = new GameObject("Div", typeof(RectTransform), typeof(Image));
+                    var dimg = div.GetComponent<Image>();
+                    var drt = (RectTransform)div.transform;
+                    drt.SetParent(slotRoot, false);
+                    drt.anchorMin = drt.anchorMax = new Vector2(0.5f, 0.5f);
+                    drt.sizeDelta = new Vector2(2, h - 10);
+                    drt.anchoredPosition = new Vector2((i + 1) * cw - w / 2, 0);
+                    dimg.color = new Color(1f, 1f, 1f, 0.12f);
+                }
             }
             RefreshSlots();
         }
@@ -315,14 +324,14 @@ namespace Xio.Game
                         irt.anchoredPosition = Vector2.zero;
                     }
                 }
-                else img.color = new Color(0.5f, 0.5f, 0.5f, 0.35f);
+                else img.color = new Color(0.1f, 0.2f, 0.14f, 0.55f);
             }
         }
 
         private void UpdateScoreText()
         {
             if (scoreText != null)
-                scoreText.text = $"第 {Game.Level.LevelNo} 关  |  分数 {Game.Score}  |  剩余 {Game.PendingCells.Count}";
+                scoreText.text = $"分数 {Game.Score}  |  剩 {Game.PendingCells.Count}";
         }
 
         private void OnStateChanged(GameState s)
@@ -340,7 +349,8 @@ namespace Xio.Game
             }
             else if (s == GameState.Lose)
             {
-                if (scoreText != null) scoreText.text = "槽位满了…用道具或重开";
+                bool timeout = Game.TimeLeft <= 0f;
+                if (scoreText != null) scoreText.text = timeout ? "时间到…再试一次" : "槽位满了…用道具或重开";
                 AudioManager.Inst.PlayLose();
             }
         }

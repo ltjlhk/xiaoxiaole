@@ -68,7 +68,7 @@ namespace Xio.Game
             var scaler = canvasGo.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(750, 1334);
-            scaler.matchWidthOrHeight = 0.5f;
+            scaler.matchWidthOrHeight = 0f;  // 竖屏：以宽度为基准，高度自适应
 
             if (FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null)
             {

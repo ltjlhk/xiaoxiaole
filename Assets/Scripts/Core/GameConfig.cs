@@ -21,6 +21,7 @@ namespace Xio.Game
         public int FairyId;
         public string ShareTitle;
         public string ShareText;
+        public int TimeLimit;            // 限时（秒）；0 = 用默认 8 分钟
 
         public int Rows => PuzzleCut[0];
         public int Cols => PuzzleCut[1];
