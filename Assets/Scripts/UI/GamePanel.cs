@@ -54,6 +54,7 @@ namespace Xio.Game
         public void Init(PuzzleLevel level, List<string> flowerPool, Texture2D puzzleTex)
         {
             MatchCount = ClearCount = ShuffleCount = ComposeCount = FreezeCount = 0;
+            _combo = 0;
             Game = new PuzzleGame();
             Game.StartGame(level, flowerPool);
             BuildBoard(level);
@@ -228,11 +229,39 @@ namespace Xio.Game
             AudioManager.Inst.PlayLight();
         }
 
+        private int _combo;
+
         private void OnPatternMatched(int pid, string flowerTex)
         {
             MatchCount++;
+            _combo++;
             AudioManager.Inst.PlayMatch(flowerTex);
             EventCenter.OnMatch?.Invoke(pid);
+            // 原版特效：baozha 爆炸粒子 + 连击飘字（combo 区 y=-457，Screen 中心系）
+            Vector2 slotPos = SlotCenterAnchored();
+            GameFX.PlaySpineFx("baozha", slotPos, 1.6f);
+            GameFX.PlaySpineFx("kapailizi", slotPos, 1.2f);
+            string comboTxt = _combo >= 2 ? $"x{_combo} 连击!" : "+1";
+            GameFX.PopText(new Vector2(0, -457 + 60), comboTxt,
+                _combo >= 3 ? new Color(1f, 0.55f, 0.2f) : new Color(1f, 0.95f, 0.6f), _combo >= 3 ? 46 : 36);
+        }
+
+        /// <summary>槽位中心（根 Canvas 坐标，供特效定位）。</summary>
+        internal Vector2 SlotCenterAnchored()
+        {
+            if (slotRoot is RectTransform srt)
+            {
+                var canvas = GetComponentInParent<Canvas>(true);
+                if (canvas != null && canvas.rootCanvas != null)
+                {
+                    var rootRt = (RectTransform)canvas.rootCanvas.transform;
+                    Vector2 world = RectTransformUtility.WorldToScreenPoint(null, srt.position);
+                    RectTransformUtility.ScreenPointToLocalPointInRectangle(rootRt, world, null, out var local);
+                    return local;
+                }
+                return srt.anchoredPosition;
+            }
+            return Vector2.zero;
         }
 
         private void OnCardCollected(Card c) { RefreshSlots(); UpdateScoreText(); }
@@ -250,6 +279,11 @@ namespace Xio.Game
                 case ToolType.Compose: ComposeCount++; break;
                 case ToolType.Freeze: FreezeCount++; break;
             }
+            // 原版特效：冻结蓝闪 + dongjie 图标 + effect_6 骨骼
+            if (t == ToolType.Freeze) GameFX.FreezeFlash();
+            else if (t == ToolType.Compose) GameFX.PlaySpineFx("effect_6", SlotCenterAnchored(), 1.4f);
+            else if (t == ToolType.Clear) GameFX.PlaySpineFx("effect_3", SlotCenterAnchored(), 1.4f);
+            else if (t == ToolType.Shuffle) GameFX.PlaySpineFx("effect_5", SlotCenterAnchored(), 1.4f);
             // 重建棋盘（叠堆变了）
             BuildBoard(Game.Level);
             RefreshSlots();
@@ -339,6 +373,9 @@ namespace Xio.Game
             if (s == GameState.Win)
             {
                 if (scoreText != null) scoreText.text = "拼图完成！得分 " + Game.Score;
+                // 原版特效：星从牌区飞向顶栏星标（星数+1 的视觉化）；顶锚(-34,-129) → 中心系 y=+538
+                GameFX.FlyStar(SlotCenterAnchored() + new Vector2(0, 260), new Vector2(-34, 538));
+                GameFX.PlaySpineFx("effect_5", Vector2.zero, 2f);
                 if (Game.Level.PuzzleReward != null)
                     foreach (var rw in Game.Level.PuzzleReward)
                         if (rw.Count >= 2)

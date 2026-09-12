@@ -29,14 +29,50 @@ namespace Xio.Game
             {
                 try { _data = JsonUtility.FromJson<PlayerSave>(json); } catch { _data = new PlayerSave(); }
                 if (_data == null) _data = new PlayerSave();
+                DictsFromLists(_data);
             }
         }
 
         public static void Save()
         {
             _loaded = true;
-            PlayerPrefs.SetString(SaveKey, JsonUtility.ToJson(_data ?? new PlayerSave()));
+            if (_data == null) _data = new PlayerSave();
+            DictsToLists(_data);
+            PlayerPrefs.SetString(SaveKey, JsonUtility.ToJson(_data));
             PlayerPrefs.Save();
+        }
+
+        /// <summary>Dictionary → 可序列化 List（JsonUtility 不支持 Dictionary，直接落盘会静默丢档）。</summary>
+        private static void DictsToLists(PlayerSave d)
+        {
+            Sync(d.items, d.s_items);
+            Sync(d.fairyLevel, d.s_fairyLevel);
+            Sync(d.seasonProgress, d.s_seasonProgress);
+        }
+
+        private static void DictsFromLists(PlayerSave d)
+        {
+            if (d.items == null) d.items = new Dictionary<int, int>();
+            if (d.fairyLevel == null) d.fairyLevel = new Dictionary<int, int>();
+            if (d.seasonProgress == null) d.seasonProgress = new Dictionary<int, int>();
+            Fill(d.s_items, d.items);
+            Fill(d.s_fairyLevel, d.fairyLevel);
+            Fill(d.s_seasonProgress, d.seasonProgress);
+        }
+
+        private static void Sync(Dictionary<int, int> dict, List<IntPair> list)
+        {
+            if (dict == null || list == null) return;
+            list.Clear();
+            foreach (var kv in dict) list.Add(new IntPair { k = kv.Key, v = kv.Value });
+        }
+
+        private static void Fill(List<IntPair> list, Dictionary<int, int> dict)
+        {
+            if (list == null) return;
+            if (dict == null) dict = new Dictionary<int, int>();
+            dict.Clear();
+            foreach (var p in list) dict[p.k] = p.v;
         }
 
         public static void RewardLevel(int levelId)

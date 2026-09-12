@@ -19,7 +19,8 @@ namespace Xio.UI
         private Text _titleText;
         private Text _coinText;
         private Text _timeText;
-        private GameObject _overlay;
+        private Text _starText;
+        private int _levelNo = 1;
         private bool _settled;
         private PuzzleGame _subscribedGame;
         private SkillTriggerController _skillCtl;
@@ -63,90 +64,109 @@ namespace Xio.UI
 
         private void MakeTopBar()
         {
-            // ===== 左上：暂停按钮（原版 resetting_icon）=====
+            // ===== 顶栏（原版 res_Game 坐标：锚=顶中心，y 负向下）=====
+            // 左上：暂停 imgPause (-334,-111) 66.5×67.9 sp=suspend
             var pause = UIHelper.Button(Root, "Pause", () => ShowPauseMenu());
-            UIHelper.Place((RectTransform) pause.transform, new Vector2(0, 1f), new Vector2(72, 72), new Vector2(86, -96));
+            UIHelper.Place((RectTransform) pause.transform, new Vector2(0.5f, 1f), new Vector2(67, 68), new Vector2(-334, -111));
             var pi = pause.gameObject.GetComponent<Image>();
-            var pIcon = OriginalAssets.GetUi("resetting_icon");
+            var pIcon = OriginalAssets.GetUi("suspend") ?? OriginalAssets.GetUi("resetting_icon");
             if (pIcon != null) { pi.sprite = pIcon; pi.color = Color.white; }
             else pi.color = new Color(0.2f, 0.3f, 0.45f, 0.9f);
 
-            // ===== 左上第二：倒计时（原版 time_show + mm:ss）=====
-            var timeBox = UIHelper.Image(Root, "TimeBox", OriginalAssets.GetUi("time_show"));
-            UIHelper.Place((RectTransform) timeBox.transform, new Vector2(0, 1f), new Vector2(190, 64), new Vector2(190, -98));
-            var tImg = timeBox.GetComponent<Image>();
-            tImg.type = Image.Type.Sliced;
-            tImg.color = Color.white;
-            var tIcon = UIHelper.Image(timeBox.transform, "TIcon", OriginalAssets.GetUi("timebig"));
-            UIHelper.Place((RectTransform) tIcon.transform, new Vector2(0, 0.5f), new Vector2(40, 40), new Vector2(38, 0));
-            _timeText = UIHelper.Text(timeBox.transform, "T", "08:00", 34, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
-            UIHelper.Place(_timeText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(120, 48), new Vector2(24, 0));
-            _timeText.gameObject.AddComponent<Outline>().effectColor = new Color(0.1f, 0.18f, 0.35f);
-            _timeText.gameObject.GetComponent<Outline>().effectDistance = new Vector2(2, -2);
+            // 左侧：倒计时文字 txtOverTime (-235,-109) 160×80 "00:00"（白字深描边，无底图）
+            _timeText = UIHelper.Text(Root, "TimeText", "08:00", 34, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
+            UIHelper.Place(_timeText.rectTransform, new Vector2(0.5f, 1f), new Vector2(160, 80), new Vector2(-235, -109));
+            var tOut = _timeText.gameObject.AddComponent<Outline>();
+            tOut.effectColor = new Color(0.12f, 0.2f, 0.1f);
+            tOut.effectDistance = new Vector2(2, -2);
 
-            // ===== 中上：关卡花环「第X关」+ ★星评 =====
-            var halo = UIHelper.Image(Root, "Halo", OriginalAssets.GetUi("tools_frame"));
-            UIHelper.Place((RectTransform) halo.transform, new Vector2(0.5f, 1f), new Vector2(240, 72), new Vector2(0, -96));
-            var hImg = halo.GetComponent<Image>();
-            hImg.type = Image.Type.Sliced;
-            hImg.color = new Color(0.96f, 0.85f, 0.5f, 0.95f);
-            _titleText = UIHelper.Text(halo.transform, "TitleText", "第 1 关", 32, new Color(0.45f, 0.22f, 0.05f), FontStyle.Bold);
-            UIHelper.Place(_titleText.rectTransform, new Vector2(0.5f, 0.62f), new Vector2(240, 44), Vector2.zero);
-            _titleText.gameObject.AddComponent<Outline>().effectColor = new Color(1f, 0.98f, 0.85f);
-            _titleText.gameObject.GetComponent<Outline>().effectDistance = new Vector2(1, -1);
-            // ★ 星评（本关已得星，原版 Star01）
-            var starSp = OriginalAssets.GetUi("Star01");
-            for (int i = 0; i < 3; i++)
-            {
-                var st = UIHelper.Image(halo.transform, "Star_" + i, starSp);
-                UIHelper.Place((RectTransform) st.transform, new Vector2(0.5f, 0.5f), new Vector2(30, 30),
-                    new Vector2(-36 + i * 36, -26));
-                st.color = i == 0 ? Color.white : new Color(0.5f, 0.5f, 0.5f, 0.45f);
-            }
+            // 中央：倒计时牌 countdownbase (0,-100) 284×132（原版 316×147×0.9）+ 进度条 + 关卡字 + 星
+            var cd = UIHelper.Image(Root, "CountdownBase", OriginalAssets.GetUi("countdownbase"));
+            UIHelper.Place((RectTransform) cd.transform, new Vector2(0.5f, 1f), new Vector2(284, 132), new Vector2(0, -100));
+            cd.color = Color.white;
 
-            // ===== 右上：设置（原版 wx_shezhi）+ 金币 =====
+            // imgLevelPro (0,-90) 220×34 sp=blueprogressbar（Filled 横向，段内进度）
+            var pro = UIHelper.Image(Root, "LevelPro", OriginalAssets.GetUi("blueprogressbar"));
+            UIHelper.Place((RectTransform) pro.transform, new Vector2(0.5f, 1f), new Vector2(220, 34), new Vector2(0, -90));
+            pro.type = Image.Type.Filled;
+            pro.fillMethod = Image.FillMethod.Horizontal;
+            pro.fillAmount = Mathf.Clamp01(((LevelId - 1) % 20) / 20f);
+            pro.color = Color.white;
+
+            // txtLevel (0,-90) 140×50 "第X关"
+            _titleText = UIHelper.Text(Root, "TitleText", "第 1 关", 30, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
+            UIHelper.Place(_titleText.rectTransform, new Vector2(0.5f, 1f), new Vector2(140, 50), new Vector2(0, -90));
+            var o1 = _titleText.gameObject.AddComponent<Outline>();
+            o1.effectColor = new Color(0.25f, 0.12f, 0.02f);
+            o1.effectDistance = new Vector2(1.5f, -1.5f);
+
+            // imgStar (-34,-129) 35×36 + txtStar (20,-128) 100×55（累计星数）
+            var starSp = OriginalAssets.GetUi("star") ?? OriginalAssets.GetUi("Star01");
+            var stImg = UIHelper.Image(Root, "StarIcon", starSp);
+            UIHelper.Place((RectTransform) stImg.transform, new Vector2(0.5f, 1f), new Vector2(35, 36), new Vector2(-34, -129));
+            stImg.preserveAspect = true;
+            _starText = UIHelper.Text(Root, "StarText", "0", 28, Color.white, FontStyle.Bold, TextAnchor.MiddleLeft);
+            UIHelper.Place(_starText.rectTransform, new Vector2(0.5f, 1f), new Vector2(100, 55), new Vector2(20, -128));
+            var o2 = _starText.gameObject.AddComponent<Outline>();
+            o2.effectColor = new Color(0.25f, 0.12f, 0.02f);
+            o2.effectDistance = new Vector2(1.5f, -1.5f);
+
+            // ===== 右上：设置 + 金币（原版右上留空，为复刻附加功能保留）=====
             var stBtn = UIHelper.Button(Root, "Settings", () => ShowPauseMenu());
-            UIHelper.Place((RectTransform) stBtn.transform, new Vector2(1f, 1f), new Vector2(72, 72), new Vector2(-86, -96));
+            UIHelper.Place((RectTransform) stBtn.transform, new Vector2(0.5f, 1f), new Vector2(67, 68), new Vector2(-100, -111));
             var si = stBtn.gameObject.GetComponent<Image>();
             var sIcon = OriginalAssets.GetUi("wx_shezhi");
             if (sIcon != null) { si.sprite = sIcon; si.color = Color.white; }
             else si.color = new Color(0.2f, 0.3f, 0.45f, 0.9f);
 
             var goldIcon = UIHelper.Image(Root, "GoldIcon", OriginalAssets.GetUi("bigbig_gold"));
-            UIHelper.Place((RectTransform) goldIcon.transform, new Vector2(1f, 1f), new Vector2(40, 40), new Vector2(-146, -98));
+            UIHelper.Place((RectTransform) goldIcon.transform, new Vector2(0.5f, 1f), new Vector2(40, 40), new Vector2(-185, -111));
             _coinText = UIHelper.Text(Root, "CoinText", "", 30, new Color(1f, 0.92f, 0.55f), FontStyle.Bold, TextAnchor.MiddleLeft);
-            UIHelper.Place(_coinText.rectTransform, new Vector2(1f, 1f), new Vector2(110, 44), new Vector2(-104, -98));
-            _coinText.gameObject.AddComponent<Outline>().effectColor = new Color(0.3f, 0.18f, 0.05f);
-            _coinText.gameObject.GetComponent<Outline>().effectDistance = new Vector2(1.5f, -1.5f);
+            UIHelper.Place(_coinText.rectTransform, new Vector2(0.5f, 1f), new Vector2(120, 44), new Vector2(-155, -111));
+            var o3 = _coinText.gameObject.AddComponent<Outline>();
+            o3.effectColor = new Color(0.3f, 0.18f, 0.05f);
+            o3.effectDistance = new Vector2(1.5f, -1.5f);
             if (_coinText != null) _coinText.text = SaveManager.Data.coins.ToString();
 
-            // ===== 底部分数（槽上方，进度提示：消除剩余组数）=====
+            // ===== combo 区（原版 y=-457）：剩余组数提示 =====
             _scoreText = UIHelper.Text(Root, "ScoreText", "--", 24, new Color(1f, 0.98f, 0.9f), FontStyle.Bold, TextAnchor.MiddleCenter);
-            UIHelper.Place(_scoreText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(620, 36), new Vector2(0, -270));
-            _scoreText.gameObject.AddComponent<Outline>().effectColor = new Color(0.25f, 0.15f, 0.05f);
-            _scoreText.gameObject.GetComponent<Outline>().effectDistance = new Vector2(1.5f, -1.5f);
+            UIHelper.Place(_scoreText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(620, 36), new Vector2(0, -457));
+            var o4 = _scoreText.gameObject.AddComponent<Outline>();
+            o4.effectColor = new Color(0.25f, 0.15f, 0.05f);
+            o4.effectDistance = new Vector2(1.5f, -1.5f);
         }
 
         private void MakeBoardArea()
         {
-            // 棋盘居中，顶栏下方；槽位+道具栏在底部
+            // ===== 原版 res_Game 坐标（750×1334 中心系）=====
+            // 牌区：牌堆顶点 startTransformTop y=+517 → 槽 y=-9 之间
             var board = UIHelper.NewRect(Root, "BoardRoot");
-            UIHelper.Place(board, new Vector2(0.5f, 0.5f), new Vector2(700, 720), new Vector2(0, 140));
+            UIHelper.Place(board, new Vector2(0.5f, 0.5f), new Vector2(700, 660), new Vector2(0, 250));
 
+            // 7 槽：startTransformDown (0,658, 底锚) → 屏幕 y=-9，槽悬于牌区前
             var slot = UIHelper.NewRect(Root, "SlotRoot");
-            UIHelper.Place(slot, new Vector2(0.5f, 0.5f), new Vector2(700, 96), new Vector2(0, -320));
+            UIHelper.Place(slot, new Vector2(0.5f, 0.5f), new Vector2(740, 110), new Vector2(0, -9));
 
-            // 槽底衬（原版槽位板）
+            // 槽底衬（复刻辅助，原版无）
             var plate = UIHelper.Image(slot, "Plate");
             UIHelper.Stretch((RectTransform)plate.transform);
             var pimg = plate.GetComponent<Image>();
             var plateSp = OriginalAssets.GetUi("dibuheisebanyuandi");
             if (plateSp != null) { pimg.sprite = plateSp; pimg.type = Image.Type.Sliced; }
-            pimg.color = new Color(0.06f, 0.1f, 0.16f, 0.45f);
+            pimg.color = new Color(0.06f, 0.1f, 0.16f, 0.35f);
 
-            // 工具条
+            // 底部衬条 imgBtnDi：stretch-bottom h=100 y=50，sp=Home_panel_01
+            var btnDi = UIHelper.Image(Root, "BtnDi", OriginalAssets.GetUi("Home_panel_01"));
+            var brt = (RectTransform)btnDi.transform;
+            brt.anchorMin = new Vector2(0, 0);
+            brt.anchorMax = new Vector2(1, 0);
+            brt.pivot = new Vector2(0.5f, 0.5f);
+            brt.sizeDelta = new Vector2(0, 100);
+            brt.anchoredPosition = new Vector2(0, 50);
+
+            // 道具栏 prop：(0,80,底锚) 750×160 → 屏幕 y=-587
             var tb = UIHelper.NewRect(Root, "ToolBar");
-            UIHelper.Place(tb, new Vector2(0.5f, 0.5f), new Vector2(700, 140), new Vector2(0, -450));
+            UIHelper.Place(tb, new Vector2(0.5f, 0f), new Vector2(750, 160), new Vector2(0, 80));
             MakeToolBar(tb);
         }
 
@@ -154,7 +174,10 @@ namespace Xio.UI
         {
             string[] labels = { "合成", "刷新", "清扫", "冻结" };
             ToolType[] tools = { ToolType.Compose, ToolType.Shuffle, ToolType.Clear, ToolType.Freeze };
-            string[] icons = { "skill_autoCombine", "skill_autoTurn", "skill_clear", "dongjie" };
+            string[] icons = { "compose", "shuffle", "clear", "freeze" };          // 原版 sp 名
+            string[] iconsAlt = { "skill_autoCombine", "skill_autoTurn", "skill_clear", "dongjie" };
+            // 原版 prop1-4：x=±258.8/±86.2，y=3，145×145
+            float[] xs = { -258.8f, -86.2f, 86.2f, 258.8f };
             for (int i = 0; i < labels.Length; i++)
             {
                 int ii = i;
@@ -163,40 +186,39 @@ namespace Xio.UI
                 {
                     if (_gamePanel != null && _gamePanel.Game != null) _gamePanel.Game.UseTool(tool);
                 });
-                // 4 按钮居中：总宽 3*120=360，起点 -180
                 UIHelper.Place((RectTransform) bt.transform, new Vector2(0.5f, 0.5f),
-                    new Vector2(128, 128), new Vector2(-180 + 120 * ii, 0));
+                    new Vector2(145, 145), new Vector2(xs[ii], 3));
 
-                // 圆形蓝底（原版技能圆钮 Circle01 青蓝渐变）
+                // 圆底：原版 imgBg=dibuheisebanyuandi 161×157×0.9
                 var bi = bt.gameObject.GetComponent<Image>();
-                var bgSp = OriginalAssets.GetUi("Circle01");
-                if (bgSp != null) { bi.sprite = bgSp; bi.color = new Color(0.2f, 0.5f, 0.85f, 0.92f); }
-                else bi.color = new Color(0.22f, 0.5f, 0.82f);
+                var bgSp = OriginalAssets.GetUi("dibuheisebanyuandi");
+                if (bgSp != null) { bi.sprite = bgSp; bi.color = Color.white; }
+                else { bi.sprite = OriginalAssets.GetUi("Circle01"); bi.color = new Color(0.2f, 0.5f, 0.85f, 0.92f); }
 
-                var iconSp = OriginalAssets.GetUi(icons[i]);
+                var iconSp = OriginalAssets.GetUi(icons[i]) ?? OriginalAssets.GetUi(iconsAlt[i]);
                 if (iconSp != null)
                 {
                     var ic = UIHelper.Image(bt.transform, "Icon", iconSp);
                     ic.preserveAspect = true;
+                    // 原版 imgIcon (0,13)，约 80×95
                     UIHelper.Place((RectTransform) ic.transform, new Vector2(0.5f, 0.5f),
-                        new Vector2(72, 72), new Vector2(0, 0));
-                }
-                else
-                {
-                    var t = UIHelper.Text(bt.transform, "Text", labels[i], 24, Color.white, FontStyle.Bold);
-                    UIHelper.Stretch(t.rectTransform);
+                        new Vector2(78, 90), new Vector2(0, 13));
                 }
 
-                // 红角标（次数/不限）
-                var badge = UIHelper.Text(bt.transform, "Badge", "+", 24,
+                // 名称：原版 txtName (0,-38) 147×50
+                var nameT = UIHelper.Text(bt.transform, "Name", labels[i], 24, Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
+                UIHelper.Place(nameT.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(147, 50), new Vector2(0, -38));
+                var no = nameT.gameObject.AddComponent<Outline>();
+                no.effectColor = new Color(0.25f, 0.12f, 0.02f);
+                no.effectDistance = new Vector2(1.5f, -1.5f);
+
+                // 红角标：原版 txtNum (50.5,42) 65×55 "+"
+                var badge = UIHelper.Text(bt.transform, "Badge", "+", 26,
                     Color.white, FontStyle.Bold, TextAnchor.MiddleCenter);
-                var brt = badge.rectTransform;
-                brt.anchorMin = brt.anchorMax = new Vector2(1f, 1f);
-                brt.pivot = new Vector2(1f, 1f);
-                brt.sizeDelta = new Vector2(56, 34);
-                brt.anchoredPosition = new Vector2(2, -2);
-                badge.gameObject.AddComponent<Outline>().effectColor = new Color(0.4f, 0.05f, 0.05f);
-                badge.gameObject.GetComponent<Outline>().effectDistance = new Vector2(1.5f, -1.5f);
+                UIHelper.Place(badge.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(65, 55), new Vector2(50.5f, 42));
+                var bo = badge.gameObject.AddComponent<Outline>();
+                bo.effectColor = new Color(0.4f, 0.05f, 0.05f);
+                bo.effectDistance = new Vector2(1.5f, -1.5f);
                 _badges.Add(badge);
 
                 // 技能冷却次数（原版：合成2 刷新3 清扫+ 冻结1；这里用存档道具库存）
@@ -226,55 +248,24 @@ namespace Xio.UI
                 : (s <= 30 ? new Color(1f, 0.45f, 0.35f) : Color.white); // 30s 内=红
         }
 
-        /// <summary>暂停菜单（暂停/设置共用）：继续 / 重开 / 返回选关。</summary>
+        /// <summary>暂停/设置共用：压栈复刻暂停面板 res_PauseView（暂停=冻结倒计时）。</summary>
         private void ShowPauseMenu()
         {
-            if (_overlay != null) { Object.Destroy(_overlay); _overlay = null; return; }
             if (_gamePanel == null || _gamePanel.Game == null) return;
             var g = _gamePanel.Game;
-            bool wasPlaying = g.State == GameState.Playing;
-            if (wasPlaying) g.TimeFrozen = true;   // 暂停=冻结倒计时
+            if (g.State == GameState.Playing) g.TimeFrozen = true;
 
-            _overlay = UIHelper.Image(Root, "PauseMask").gameObject;
-            UIHelper.Stretch((RectTransform) _overlay.transform);
-            _overlay.GetComponent<Image>().color = new Color(0, 0, 0, 0.62f);
-
-            var panel = UIHelper.NewRect(_overlay.transform, "Panel");
-            UIHelper.Place(panel, new Vector2(0.5f, 0.5f), new Vector2(560, 420), new Vector2(0, 0));
-            var board = OriginalAssets.GetUi("jiesuankuang_1");
-            if (board != null) { var bi = panel.gameObject.AddComponent<Image>(); bi.sprite = board; bi.type = Image.Type.Sliced; }
-            else panel.gameObject.AddComponent<Image>().color = new Color(0.12f, 0.16f, 0.24f, 0.95f);
-
-            var title = UIHelper.Text(panel, "Title", "暂停", 40, new Color(1f, 0.96f, 0.75f), FontStyle.Bold);
-            UIHelper.Place(title.rectTransform, new Vector2(0.5f, 0.85f), new Vector2(400, 60), Vector2.zero);
-
-            MakePauseButton(panel, "继续", () =>
+            PanelManager.Instance.Push<PauseViewPanel>(p =>
             {
-                Object.Destroy(_overlay); _overlay = null;
-                if (g.State == GameState.Playing) g.TimeFrozen = false;
-            }, new Vector2(0, -30));
-            MakePauseButton(panel, "重开本关", () =>
-            {
-                Object.Destroy(_overlay); _overlay = null;
-                StartLevel(LevelId);
-            }, new Vector2(0, -120));
-            MakePauseButton(panel, "返回选关", () =>
-            {
-                Object.Destroy(_overlay); _overlay = null;
-                PanelManager.Instance.Pop();
-            }, new Vector2(0, -210));
-        }
-
-        private void MakePauseButton(Transform parent, string label, System.Action onClick, Vector2 pos)
-        {
-            var bt = UIHelper.Button(parent, "Btn_" + label, onClick);
-            UIHelper.Place((RectTransform) bt.transform, new Vector2(0.5f, 0.55f), new Vector2(340, 74), pos);
-            var board = OriginalAssets.GetUi("button_active");
-            var bi = bt.gameObject.GetComponent<Image>();
-            if (board != null) { bi.sprite = board; bi.type = Image.Type.Sliced; bi.color = Color.white; }
-            else bi.color = new Color(0.95f, 0.78f, 0.32f);
-            var t = UIHelper.Text(bt.transform, "L", label, 30, new Color(0.35f, 0.2f, 0.05f), FontStyle.Bold);
-            UIHelper.Stretch(t.rectTransform);
+                p.OnResume = () => { if (g.State == GameState.Playing) g.TimeFrozen = false; };
+                p.OnRestart = () =>
+                {
+                    if (g.State == GameState.Playing) g.TimeFrozen = false;
+                    StartLevel(LevelId);
+                };
+                // 回调先于面板自身 Pop 执行：此处 Pop 弹掉 PauseView，按钮再 Pop 弹掉本面板 → 回主城
+                p.OnHome = () => PanelManager.Instance.Pop();
+            });
         }
 
         /// <summary>启动指定关卡（面板内切换关卡也走这里）。</summary>
@@ -283,7 +274,6 @@ namespace Xio.UI
             LevelId = levelId;
             if (_scoreText == null || _gamePanel == null) return;
 
-            if (_overlay != null) { Object.Destroy(_overlay); _overlay = null; }
             _settled = false;
 
             var map = ConfigLoader.SplitTopLevel(ConfigLoader.LoadRaw("PuzzleConfig"));
@@ -309,7 +299,9 @@ namespace Xio.UI
             _gamePanel.Init(level, flowers, tex);
             var g = _gamePanel.Game;
             if (g == null) return;
+            if (level != null) _levelNo = level.LevelNo;
             if (_titleText != null) _titleText.text = $"第 {level.LevelNo} 关";
+            if (_starText != null) _starText.text = SaveManager.Data.stars.ToString();
             if (_timeText != null)
                 _timeText.text = string.Format("{0:00}:{1:00}",
                     (int) g.TimeLeft / 60, (int) g.TimeLeft % 60);
@@ -362,47 +354,19 @@ namespace Xio.UI
             });
         }
 
+        /// <summary>结算：压栈复刻结算面板 res_Over（winPanel/failPanel 按 Win 切换）。</summary>
         private void ShowSettle(bool win)
         {
-            if (_overlay != null) Object.Destroy(_overlay);
-            _overlay = UIHelper.Image(Root, "SettleMask").gameObject;
-            UIHelper.Stretch((RectTransform)_overlay.transform);
-            _overlay.GetComponent<Image>().color = new Color(0, 0, 0, 0.62f);
-
-            var panel = UIHelper.NewRect(_overlay.transform, "Settle");
-            UIHelper.Place(panel, new Vector2(0.5f, 0.5f), new Vector2(640, 360), new Vector2(0, 0));
-            var board = OriginalAssets.GetUi("jiesuankuang_1");
-            if (board != null)
+            PanelManager.Instance.Push<OverPanel>(p =>
             {
-                var bi = panel.gameObject.AddComponent<Image>();
-                bi.sprite = board;
-                bi.type = Image.Type.Sliced;
-            }
-            else
-            {
-                panel.gameObject.AddComponent<Image>().color = new Color(0.12f, 0.16f, 0.24f, 0.95f);
-            }
-
-            var msg = UIHelper.Text(panel, "Msg", win ? "关卡完成！" : "失败啦…", 44,
-                win ? new Color(1f, 0.96f, 0.7f) : new Color(1f, 0.75f, 0.7f), FontStyle.Bold);
-            UIHelper.Place(msg.rectTransform, new Vector2(0.5f, 0.8f), new Vector2(600, 70), Vector2.zero);
-
-            // 下一关 / 重试 + 回主城
-            MakeSettleButton(panel, win ? "下一关" : "重 试", win ? (System.Action)OnNextLevel : OnRetry, new Vector2(0, -40));
-            MakeSettleButton(panel, "返回选关", () => PanelManager.Instance.Pop(), new Vector2(0, -130));
-        }
-
-        private void MakeSettleButton(Transform parent, string label, System.Action onClick, Vector2 pos)
-        {
-            var bt = UIHelper.Button(parent, "Btn_" + label, onClick);
-            UIHelper.Place((RectTransform)bt.transform, new Vector2(0.5f, 0.5f), new Vector2(300, 76), pos);
-            var board = OriginalAssets.GetUi("mp_board");
-            var bi = bt.gameObject.GetComponent<Image>();
-            if (board != null) { bi.sprite = board; bi.color = Color.white; }
-            else bi.color = new Color(0.95f, 0.78f, 0.32f);
-
-            var t = UIHelper.Text(bt.transform, "L", label, 30, new Color(0.4f, 0.22f, 0.06f), FontStyle.Bold);
-            UIHelper.Stretch(t.rectTransform);
+                p.Win = win;
+                p.LevelNo = _levelNo;
+                p.Stars = SaveManager.Data.stars;
+                p.OnNext = OnNextLevel;
+                p.OnRetry = OnRetry;
+                // 回调先于面板自身 Pop 执行：此处 Pop 弹掉 OverPanel，按钮再 Pop 弹掉本面板 → 回主城
+                p.OnHome = () => PanelManager.Instance.Pop();
+            });
         }
 
         private void OnNextLevel()
@@ -419,8 +383,9 @@ namespace Xio.UI
 
         public override void Refresh()
         {
-            // 游戏内变化（如返回上一面板）无需重建；金币可能变化（结算领奖）
+            // 游戏内变化（如返回上一面板）无需重建；金币/星数可能变化（结算领奖）
             if (_coinText != null) _coinText.text = SaveManager.Data.coins.ToString();
+            if (_starText != null) _starText.text = SaveManager.Data.stars.ToString();
         }
 
         public override void Close()
