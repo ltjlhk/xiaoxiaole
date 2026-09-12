@@ -182,15 +182,24 @@ namespace Xio.Game
 
         private static readonly Dictionary<string, Material> _faceMats = new Dictionary<string, Material>();
 
-        /// <summary>花牌面材质缓存（16 花色共享）。</summary>
+        /// <summary>花牌面材质缓存（16 花色共享）。
+        /// UV 修正：Quad 转 -90° 后 V 轴指向 -Z，俯视相机（up=+Z）下贴图上下颠倒 →
+        /// mainTextureScale=(1,-1)+offset=(0,1) 翻回。</summary>
         private static Material FaceMaterial(string texName, Sprite sp)
         {
             Material m;
             if (_faceMats.TryGetValue(texName, out m) && m != null) return m;
             if (sp != null)
+            {
                 m = new Material(Shader.Find("Unlit/Transparent")) { mainTexture = sp.texture };
+                m.mainTextureScale = new Vector2(1f, -1f);
+                m.mainTextureOffset = new Vector2(0f, 1f);
+            }
             else
+            {
+                Debug.LogWarning("[Scene3D] 花牌贴图缺失: " + texName);
                 m = new Material(Shader.Find("Unlit/Color")) { color = new Color(0.8f, 0.8f, 0.85f) };
+            }
             _faceMats[texName] = m;
             return m;
         }
