@@ -71,13 +71,14 @@ namespace Xio.Game
             }
             Cam = camGo.GetComponent<Camera>();
             Cam.orthographic = true;
-            Cam.orthographicSize = 26f;
+            Cam.orthographicSize = 28f;
             Cam.nearClipPlane = 0.3f;
             Cam.farClipPlane = 100f;
             Cam.clearFlags = CameraClearFlags.SolidColor;
-            Cam.backgroundColor = new Color(0.1921569f, 0.3019608f, 0.4745098f, 0f);
-            camGo.transform.position = new Vector3(0f, 50f, -2.8f);
-            camGo.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            Cam.backgroundColor = new Color(0.34f, 0.52f, 0.24f, 0f);   // 原版绿色渐变底
+            // 原版斜视等角视角：北侧上方 59° 俯视（能看到牌塔顶面+侧面厚度+槽位托盘）
+            camGo.transform.position = new Vector3(0f, 40f, -24f);
+            camGo.transform.rotation = Quaternion.Euler(59f, 0f, 0f);
             if (camGo.GetComponent<AudioListener>() == null) camGo.AddComponent<AudioListener>();
 
             // ===== Build：地板 + 四墙（Unity Cube，原版 mesh 即单位立方体放大）=====
@@ -164,7 +165,7 @@ namespace Xio.Game
             body.name = "Body";
             body.transform.SetParent(go.transform, false);
             body.transform.localScale = BlockSize;
-            Object.Destroy(body.GetComponent<BoxCollider>());   // 根碰撞体接管
+            SafeDestroy(body.GetComponent<BoxCollider>());   // 根碰撞体接管
             Paint(body, new Color(1f, 1f, 1f));
 
             // 牌面（朝上 Quad，贴花牌贴图，透明队列不写深度）
@@ -177,7 +178,7 @@ namespace Xio.Game
             face.transform.localPosition = new Vector3(0f, BlockSize.y / 2f + 0.01f, 0f);
             face.transform.localScale = new Vector3(BlockSize.x - 0.18f, BlockSize.z - 0.22f, 1f);
             var col = face.GetComponent<MeshCollider>();
-            if (col != null) Object.Destroy(col);
+            if (col != null) SafeDestroy(col);
             var sp = OriginalAssets.Get("flower", texName);
             face.GetComponent<MeshRenderer>().sharedMaterial = FaceMaterial(texName, sp);
 
@@ -237,7 +238,7 @@ namespace Xio.Game
             go.transform.localScale = scale;
             go.transform.rotation = rot;
             var col = go.GetComponent<BoxCollider>();
-            if (col != null) Object.Destroy(col);
+            if (col != null) SafeDestroy(col);
             var tex = Resources.Load<Texture2D>(resPath);
             var r = go.GetComponent<MeshRenderer>();
             if (tex != null)

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using UnityEditor;
@@ -40,7 +40,8 @@ namespace Xio.EditorTools
                 boot.DirectEnter = true;
                 boot.RunNow();   // 编辑模式构建面板 + 3D 场景 + 牌堆
 
-                EditorApplication.delayCall += Capture;
+                // 批处理 -quit 模式不执行 delayCall → 必须同步截图
+                Capture();
             }
             catch (Exception e)
             {
@@ -52,6 +53,7 @@ namespace Xio.EditorTools
         {
             try
             {
+                // 2026-09-13 手动触发：对比原版复刻检查
                 Canvas.ForceUpdateCanvases();
                 var sb = new StringBuilder();
                 var cam = Camera.main;
