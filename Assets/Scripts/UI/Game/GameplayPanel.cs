@@ -14,6 +14,9 @@ namespace Xio.UI
     {
         public int LevelId = 101;
 
+        /// <summary>玩法=3D 场景（原版切场景语义）：Canvas overlay 下层全屏 BG 必须隐藏，否则盖死 3D 牌堆。</summary>
+        public override bool HideBelow => true;
+
         private GamePanel _gamePanel;
         private Text _scoreText;
         private Text _titleText;

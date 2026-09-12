@@ -15,6 +15,10 @@ namespace Xio.UI
         /// <summary>是否遮罩下层（默认 false：下层可见，主城下层）。</summary>
         protected virtual bool BlockClick => false;
 
+        /// <summary>进本面板时隐藏下层全部面板（玩法场景用：Canvas 是 ScreenSpaceOverlay
+        /// 永远盖在 3D 相机之上，下层全屏 BG 不隐藏会盖死 3D 牌堆；原版进关卡=切场景同语义）。</summary>
+        public virtual bool HideBelow => false;
+
         /// <summary>创建根节点并构建内容。</summary>
         public void Open(Transform canvasRoot)
         {

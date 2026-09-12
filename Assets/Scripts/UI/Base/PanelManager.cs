@@ -39,6 +39,7 @@ namespace Xio.UI
             if (initialize != null) initialize(panel);
             panel.Open(CanvasRoot);
             _stack.Add(panel);
+            ApplyLayerVisibility();
             return panel;
         }
 
@@ -55,7 +56,24 @@ namespace Xio.UI
             var top = _stack[_stack.Count - 1];
             _stack.RemoveAt(_stack.Count - 1);
             top.Close();
+            ApplyLayerVisibility();
             if (_stack.Count > 0) _stack[_stack.Count - 1].Refresh();
+        }
+
+        /// <summary>按最顶 HideBelow 面板裁剪显隐：其下全部隐藏（Canvas overlay 盖 3D），其上正常显示。</summary>
+        private void ApplyLayerVisibility()
+        {
+            int h = 0;
+            for (int i = _stack.Count - 1; i >= 0; i--)
+                if (_stack[i].HideBelow) { h = i; break; }
+            for (int i = 0; i < _stack.Count; i++)
+            {
+                var p = _stack[i];
+                if (p.Root == null) continue;
+                bool active = i >= h;
+                if (p.Root.gameObject.activeSelf != active)
+                    p.Root.gameObject.SetActive(active);
+            }
         }
 
         /// <summary>清空全部面板。</summary>
@@ -68,12 +86,15 @@ namespace Xio.UI
         public void Remove<T>() where T : UIPanel
         {
             for (int i = _stack.Count - 1; i >= 0; i--)
+            {
                 if (_stack[i] is T)
                 {
                     _stack[i].Close();
                     _stack.RemoveAt(i);
                 }
+            }
             RefreshStackVisibility();
+            ApplyLayerVisibility();
         }
 
         /// <summary>把指定面板提到最顶层（如关卡内点开道具弹窗）。</summary>
