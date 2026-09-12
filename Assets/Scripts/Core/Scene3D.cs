@@ -159,11 +159,12 @@ namespace Xio.Game
             Paint(body, new Color(0.97f, 0.95f, 0.9f));
 
             // 牌面（朝上 Quad，贴花牌贴图，透明队列不写深度）
-            // 原版 Plane001 rot=(-0.707,0,-0.0,0.707)=Euler(-90,0,0)：法线朝上，俯视可见
+            // Unity Quad 法线朝 -Z：R_x(+90) 把法线转到 +Y（朝上，俯视可见）。
+            // 原版 Plane001 的 Euler(-90) 是 Plane 网格坐标系（法线 +Z），不能照搬到 Quad。
             var face = GameObject.CreatePrimitive(PrimitiveType.Quad);
             face.name = "Face";
             face.transform.SetParent(go.transform, false);
-            face.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+            face.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
             face.transform.localPosition = new Vector3(0f, BlockSize.y / 2f + 0.01f, 0f);
             face.transform.localScale = new Vector3(BlockSize.x - 0.18f, BlockSize.z - 0.22f, 1f);
             var col = face.GetComponent<MeshCollider>();
@@ -183,18 +184,13 @@ namespace Xio.Game
         private static readonly Dictionary<string, Material> _faceMats = new Dictionary<string, Material>();
 
         /// <summary>花牌面材质缓存（16 花色共享）。
-        /// UV 修正：Quad 转 -90° 后 V 轴指向 -Z，俯视相机（up=+Z）下贴图上下颠倒 →
-        /// mainTextureScale=(1,-1)+offset=(0,1) 翻回。</summary>
+        /// Quad +90° 后 V 轴(+Y local)→+Z 世界=相机屏幕上方 → 贴图正立，无需 UV 翻转。</summary>
         private static Material FaceMaterial(string texName, Sprite sp)
         {
             Material m;
             if (_faceMats.TryGetValue(texName, out m) && m != null) return m;
             if (sp != null)
-            {
                 m = new Material(Shader.Find("Unlit/Transparent")) { mainTexture = sp.texture };
-                m.mainTextureScale = new Vector2(1f, -1f);
-                m.mainTextureOffset = new Vector2(0f, 1f);
-            }
             else
             {
                 Debug.LogWarning("[Scene3D] 花牌贴图缺失: " + texName);
