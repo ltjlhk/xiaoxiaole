@@ -9,35 +9,37 @@ using Xio.Game;
 namespace Xio.EditorTools
 {
     /// <summary>
-    /// 玩法场景视觉诊断：Play Demo（直进 101 关）→ 第 120 帧截 Game 视图存
-    /// C:\xiaoxiaole\diag_shot.png + 打印 3D 场景状态（方块数/材质/贴图/shader）。
-    /// 用于定位"灰块"类渲染问题（读图定生死，不猜）。
+    /// 玩法场景视觉诊断：Play Demo（直进关卡）→ 截 Game 视图存 C:\xiaoxiaole\diag_shot.png
+    /// + 3D 场景状态 dump（相机/材质/贴图/shader/灯/色域/分辨率）到 diag_shot.txt。
+    /// 自动模式：外部创建 C:\xiaoxiaole\diag_pending.txt 后，Unity 一重编译即自动执行（用户无需点菜单）。
     /// </summary>
     public static class DiagShot
     {
         private const string ShotPath = @"C:\xiaoxiaole\diag_shot.png";
         private const string LogPath = @"C:\xiaoxiaole\diag_shot.txt";
-        private static int _waitFrames = 120;
+        private const string Marker = @"C:\xiaoxiaole\diag_pending.txt";
+        private static int _waitFrames = 150;
 
         [MenuItem("Xio/诊断-截图玩法场景")]
         public static void Run()
         {
-            var sb = new StringBuilder();
+            File.Delete(Marker);   // 防循环
             try
             {
                 EditorSceneManager.OpenScene("Assets/Scenes/Demo.unity");
+                var boot = UnityEngine.Object.FindObjectOfType<GameBootstrap>();
+                if (boot != null)
+                {
+                    boot.StartLevel = 103;   // 精灵1段 第3关
+                    boot.DirectEnter = true; // 跳过主城直进关卡
+                }
                 EditorApplication.isPlaying = true;
                 EditorApplication.update += WaitAndShot;
-                sb.AppendLine("play started, waiting " + _waitFrames + " frames");
+                Debug.Log("[DiagShot] play started, wait " + _waitFrames + " frames");
             }
             catch (Exception e)
             {
-                sb.AppendLine("EXCEPTION: " + e);
-                File.WriteAllText(LogPath, sb.ToString());
-            }
-            finally
-            {
-                if (sb.Length > 0) File.AppendAllText(LogPath, sb.ToString());
+                File.WriteAllText(LogPath, "EXCEPTION(Run): " + e);
             }
         }
 
@@ -50,59 +52,59 @@ namespace Xio.EditorTools
             var sb = new StringBuilder();
             sb.AppendLine("=== diag " + DateTime.Now + " frame=" + Time.frameCount + " ===");
 
-            // 相机状态
             var cam = Camera.main;
-            if (cam != null)
-                sb.AppendLine($"cam: pos={cam.transform.position} rot={cam.transform.eulerAngles} ortho={cam.orthographic} size={cam.orthographicSize} bg={cam.backgroundColor}");
-            else
-                sb.AppendLine("cam: NULL!");
+            sb.AppendLine(cam != null
+                ? $"cam: pos={cam.transform.position} rot={cam.transform.eulerAngles} ortho={cam.orthographic} size={cam.orthographicSize} bg={cam.backgroundColor} depth={cam.depth}"
+                : "cam: NULL!");
 
-            // Scene3D 状态
-            if (Scene3D.Inst != null)
-            {
-                sb.AppendLine($"Scene3D OK: BlockParent={(Scene3D.Inst.BlockParent != null ? Scene3D.Inst.BlockParent.childCount.ToString() : "null")} " +
-                              $"Droplocation={(Scene3D.Inst.Droplocation != null ? Scene3D.Inst.Droplocation.name : "null")}");
-            }
-            else sb.AppendLine("Scene3D: NULL!");
+            sb.AppendLine($"Scene3D: {(Scene3D.Inst != null ? "OK BlockParent子节点=" + (Scene3D.Inst.BlockParent != null ? Scene3D.Inst.BlockParent.childCount.ToString() : "null") : "NULL")}");
 
-            // 全部 MeshRenderer + 材质 + 贴图状态（灰块定位核心）
-            int nullMat = 0, noTex = 0, mr = 0;
+            // 灯与色域（灰块关键因子）
+            sb.AppendLine($"lights={UnityEngine.Object.FindObjectsOfType<Light>().Length} ambient={RenderSettings.ambientLight} colorSpace={PlayerSettings.colorSpace}");
+
+            int nullMat = 0, faceNoTex = 0, faceOK = 0, mr = 0;
             foreach (var r in UnityEngine.Object.FindObjectsOfType<MeshRenderer>())
             {
                 mr++;
                 var m = r.sharedMaterial;
                 if (m == null || m.shader == null) { nullMat++; continue; }
-                var t = m.mainTexture;
                 if (r.name == "Face")
                 {
-                    if (t == null) noTex++;
-                    else sb.AppendLine($"Face: mat={m.name} shader={m.shader.name} tex={(t != null ? t.name + " " + t.width + "x" + t.height : "null")}");
+                    var t = m.mainTexture;
+                    if (t == null) { faceNoTex++; sb.AppendLine($"Face NO-TEX mat={m.name} shader={m.shader.name}"); }
+                    else { faceOK++; if (faceOK <= 2) sb.AppendLine($"Face: shader={m.shader.name} tex={t.name} {t.width}x{t.height} scale={m.mainTextureScale}"); }
                 }
             }
-            sb.AppendLine($"MeshRenderers={mr} nullMat/shader={nullMat} faceNoTex={noTex}");
-            var blk = UnityEngine.Object.FindObjectsOfType<Block3D>();
-            sb.AppendLine($"Block3D count={blk.Length}");
-            if (blk.Length > 0) sb.AppendLine($"sample: tex={blk[0].TexName} clickable={blk[0].Clickable} pos={blk[0].transform.position}");
-            var gp = UnityEngine.Object.FindObjectOfType<GamePanel>();
-            sb.AppendLine($"GamePanel={(gp != null ? "OK game=" + (gp.Game != null ? gp.Game.State.ToString() : "null") : "NULL")}");
+            sb.AppendLine($"MeshRenderers={mr} nullMat={nullMat} faceOK={faceOK} faceNoTex={faceNoTex}");
 
-            // Game 视图分辨率（CanvasScaler 匹配）
+            var blk = UnityEngine.Object.FindObjectsOfType<Block3D>();
+            sb.AppendLine($"Block3D={blk.Length}");
+            if (blk.Length > 0)
+            {
+                var b0 = blk[0];
+                sb.AppendLine($"sample: tex={b0.TexName} pos={b0.transform.position} scale={b0.transform.localScale} clickable={b0.Clickable}");
+                var face = b0.transform.Find("Face");
+                if (face != null)
+                {
+                    var fm = face.GetComponent<MeshRenderer>().sharedMaterial;
+                    sb.AppendLine($"sampleFace: shader={(fm != null ? fm.shader.name : "null")} tex={(fm != null && fm.mainTexture != null ? fm.mainTexture.name : "null")} active={face.gameObject.activeInHierarchy}");
+                }
+            }
+
+            var gp = UnityEngine.Object.FindObjectOfType<GamePanel>();
+            sb.AppendLine($"GamePanel={(gp != null ? "OK state=" + (gp.Game != null ? gp.Game.State.ToString() : "null") + " slots=" + (gp.Game != null ? gp.Game.Slots.Count.ToString() : "?") : "NULL")}");
+
             var scaler = UnityEngine.Object.FindObjectOfType<UnityEngine.UI.CanvasScaler>();
             if (scaler != null) sb.AppendLine($"scaler: ref={scaler.referenceResolution} mode={scaler.uiScaleMode} match={scaler.matchWidthOrHeight}");
             sb.AppendLine($"Screen: {Screen.width}x{Screen.height}");
 
-            // 截图（异步落盘，多等 10 帧确保写完）
             ScreenCapture.CaptureScreenshot(ShotPath);
-            sb.AppendLine("shot requested -> " + ShotPath);
+            sb.AppendLine("shot -> " + ShotPath);
             File.WriteAllText(LogPath, sb.ToString());
             Debug.Log("[DiagShot] " + sb.ToString().Replace("\n", " | "));
 
-            EditorApplication.delayCall += () =>
-            {
-                // 等 60 帧让截图写盘再退出 Play
-                _shotPending = 60;
-                EditorApplication.update += ExitSoon;
-            };
+            _shotPending = 90;   // 等截图写盘
+            EditorApplication.update += ExitSoon;
         }
 
         private static int _shotPending;
@@ -114,5 +116,17 @@ namespace Xio.EditorTools
             EditorApplication.update -= ExitSoon;
             EditorApplication.isPlaying = false;
         }
+    }
+
+    /// <summary>外部触发：C:\xiaoxiaole\diag_pending.txt 存在时，Unity 编译后自动跑诊断。</summary>
+    [InitializeOnLoad]
+    public static class DiagAuto
+    {
+        static DiagAuto()
+        {
+            if (File.Exists(DiagShot_Marker()))
+                EditorApplication.delayCall += DiagShot.Run;
+        }
+        private static string DiagShot_Marker() { return @"C:\xiaoxiaole\diag_pending.txt"; }
     }
 }

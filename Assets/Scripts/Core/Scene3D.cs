@@ -150,13 +150,13 @@ namespace Xio.Game
             go.transform.SetParent(parent, false);
             go.transform.position = worldPos;
 
-            // 体块（白玉牌身，不透明受光）
+            // 体块（白玉牌身）。原版 level2 无 Light 组件=无光照 shader → Unlit（Diffuse 无灯会渲染成深灰）
             var body = GameObject.CreatePrimitive(PrimitiveType.Cube);
             body.name = "Body";
             body.transform.SetParent(go.transform, false);
             body.transform.localScale = BlockSize;
             Object.Destroy(body.GetComponent<BoxCollider>());   // 根碰撞体接管
-            PaintOpaque(body, new Color(0.97f, 0.95f, 0.9f));
+            Paint(body, new Color(0.97f, 0.95f, 0.9f));
 
             // 牌面（朝上 Quad，贴花牌贴图，透明队列不写深度）
             // 原版 Plane001 rot=(-0.707,0,-0.0,0.707)=Euler(-90,0,0)：法线朝上，俯视可见
@@ -226,13 +226,6 @@ namespace Xio.Game
         {
             var r = go.GetComponent<MeshRenderer>();
             var mat = new Material(Shader.Find("Unlit/Color")) { color = c };
-            r.sharedMaterial = mat;
-        }
-
-        private static void PaintOpaque(GameObject go, Color c)
-        {
-            var r = go.GetComponent<MeshRenderer>();
-            var mat = new Material(Shader.Find("Legacy Shaders/Diffuse")) { color = c };
             r.sharedMaterial = mat;
         }
     }
