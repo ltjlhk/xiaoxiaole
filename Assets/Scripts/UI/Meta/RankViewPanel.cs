@@ -90,7 +90,8 @@ namespace Xio.UI
             _tipGo.SetActive(false);
             Txt(panel, "txtTimeRefresh", "每周一<color=#25CD00>00:00</color>点刷新周榜", Fs(55), new Vector2(450, 55), new Vector2(0, -306)).gameObject.SetActive(false);
 
-            // 静态演示数据：世界榜含前三领奖台（topRank），其余各 5 条
+            // 排行榜数据：世界=领奖台+RankItemWorld / 周=RankItemWeek / 好友=FameRankItem
+            string nick = Xio.Platform.PlatformService.Current.Nickname;
             int[] scores = { 980, 860, 745, 690, 520 };
             for (int i = 0; i < 3; i++)
             {
@@ -99,16 +100,28 @@ namespace Xio.UI
                 {
                     // 前三名领奖台（rank2 左 / rank1 中高 / rank3 右）
                     TopRankItem.MakePodium(content, new[] { "玩家1", "玩家2", "玩家3" }, new[] { 980, 860, 745 });
-                    // 榜单其余：第 4-8 名
+                    // 榜单其余：第 4-8 名（RankItemWorld 行）
                     for (int n = 3; n < 8; n++)
-                        MakeItem(content, "玩家" + (n + 1), scores[3] - (n - 3) * 35, n + 1);
+                        MakeWorldItem(content, n + 1, "玩家" + (n + 1), scores[3] - (n - 3) * 35, 3 - n / 4);
+                }
+                else if (i == 1)
+                {
+                    // 周榜：RankItemWeek 行
+                    for (int n = 0; n < 5; n++)
+                        MakeWeekItem(content, n + 1, "玩家" + (n + 1), scores[n], 2 - n / 3);
                 }
                 else
                 {
-                    for (int n = 0; n < 5; n++)
-                        MakeItem(content, "玩家" + (n + 1), scores[n], n + 1);
+                    // 好友榜：FameRankItem 行（含自己）
+                    MakeFriendItem(content, 1, nick, SaveManager.Data.stars, "10月14日");
+                    for (int n = 1; n < 5; n++)
+                        MakeFriendItem(content, n + 1, "好友" + n, scores[n] - 80 * n, "10月14日");
                 }
             }
+
+            // 提交本机分数（好友榜）
+            Xio.Platform.PlatformService.Current.SubmitScore(SaveManager.Data.stars);
+            Xio.Platform.PlatformService.Current.FetchFriendRanking(null);
             SelectTab(0);
         }
 
@@ -125,23 +138,17 @@ namespace Xio.UI
             else PanelManager.Instance.Pop();
         }
 
-        /// <summary>排行条目（dump res_RankItemDaily_12172 1:1）。</summary>
-        private void MakeItem(Transform parent, string name, int score, int rank)
-        {
-            var item = Box(parent, "RankItemDaily", new Vector2(718, 110), Vector2.zero);
-            Img(item, "imgMotif", "myrankingboard", new Vector2(645, 110), new Vector2(36.5f, -1.8f));
-            Img(item, "imgSkin", "mjskin1", new Vector2(67, 92), new Vector2(-320.9f, -1.3f));
-            Box(item, "imgElves", new Vector2(80, 80), Vector2.zero).gameObject.SetActive(false);
-            Img(item, "imgRank", "icon1", new Vector2(44, 47), new Vector2(-321.5f, 0)).gameObject.SetActive(false);
-            Img(item, "imgIcon", "transparent", new Vector2(64, 64), new Vector2(-206.2f, 3.5f));
-            Img(item, "imgCircle", "rankcommon", new Vector2(72, 72), new Vector2(-206.2f, 1.5f));
-            Img(item, "Image (1)", "numbottomplate", new Vector2(150, 37.8f), new Vector2(152.3f, 2.6f));
-            Img(item, "Image (2)", "output_icon_1", new Vector2(64, 64), new Vector2(79, 4.6f));
-            Txt(item, "txtRank", (rank > 3 ? "第" : "") + rank.ToString(), Fs(65), new Vector2(80, 65), new Vector2(-320.2f, 2.7f), true);
-            Txt(item, "txtName", name, Fs(60), new Vector2(200, 60), new Vector2(-62.6f, 4.1f), true);
-            Txt(item, "txtScore", score.ToString(), Fs(65), new Vector2(120, 65), new Vector2(165.3f, 3.9f), true);
-            Txt(item, "txtLevel", "0", Fs(42.8f), new Vector2(120, 42.8f), new Vector2(-64, -18.8f), true).gameObject.SetActive(false);
-        }
+        /// <summary>世界榜条目（res_RankItemWorld_12169）。</summary>
+        private void MakeWorldItem(Transform parent, int rank, string name, int score, int level)
+            => new RankItemWorld(parent, rank, name, score, level);
+
+        /// <summary>周榜条目（res_RankItemWeek_12170）。</summary>
+        private void MakeWeekItem(Transform parent, int rank, string name, int score, int level)
+            => new RankItemWeek(parent, rank, name, score, level);
+
+        /// <summary>好友榜条目（res_FameRankItem_12171）。</summary>
+        private void MakeFriendItem(Transform parent, int rank, string name, int score, string time)
+            => new FameRankItem(parent, rank, name, score, time);
 
         public override void Refresh() { }
 

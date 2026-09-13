@@ -20,7 +20,11 @@ namespace Xio.Game
 
         private void Start()
         {
-            Xio.Platform.WxApi.Init();
+            // 平台初始化：微信环境检测 + 静默登录拉取昵称（编辑器下为模拟用户）
+            var pf = Xio.Platform.PlatformService.Current;
+            pf.Init();
+            pf.Login(null);
+
             TaskTracker.Init();          // M3 赛季任务注册
             RunNow();
         }

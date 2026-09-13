@@ -179,7 +179,11 @@ namespace Xio.UI
 
         private void ShareMoments()
         {
-            PlatformService.Current.Share("就你会消除", "朋友圈晒战绩，看谁才是消除之王！", null);
+            // 朋友圈：走平台分享通道（微信=shareTimeline，编辑器=模拟）
+            PlatformService.Current.ShareTimeline("就你会消除", () =>
+            {
+                UIHint.Inst.Show("已分享到朋友圈");
+            });
         }
 
         // ==================== 开始游戏 ====================

@@ -56,14 +56,24 @@ namespace Xio.UI
 
             // 可领取区
             var able = BoxX(panel, "ableReceive", new Vector2(600, 390), new Vector2(0, -329));
-            MakeScroll(able.transform, "ScrollViewDraw", new Vector2(580, 200), new Vector2(0, 147.6f));
+            var drawContent = MakeScroll(able.transform, "ScrollViewDraw", new Vector2(580, 200), new Vector2(0, 147.6f)).content;
             var receive = Btn(able.transform, "btnReceive", "Btn_01", new Vector2(360, 102), new Vector2(0, -124),
-                () => Debug.Log("[RankReward] 领取全部"));
+                () =>
+                {
+                    SaveManager.AddCoins(100);
+                    UIHint.Inst.Show("已领取全部奖励");
+                    Debug.Log("[RankReward] 领取全部 +100 金币");
+                });
             Txt(receive.transform, "Text", "领取全部", Fs(80), new Vector2(300, 80), Vector2.zero, true);
             Txt(able.transform, "txt1 (3)", "名次", Fs(50), new Vector2(100, 50), new Vector2(-236.9f, 176.3f), true);
             Txt(able.transform, "txt1 (4)", "时间", Fs(50), new Vector2(100, 50), new Vector2(-113, 176.3f), true);
             Txt(able.transform, "txt1 (5)", "奖励", Fs(50), new Vector2(100, 50), new Vector2(51, 176.3f), true);
             Txt(able.transform, "txt1 (6)", "状态", Fs(50), new Vector2(100, 50), new Vector2(220, 176.3f), true);
+
+            // 抽奖行（res_RankDrawItem_9972）：名次/时间/奖励 + 未领取/已领取
+            new RankDrawItem(drawContent, "1", "10月14日", "金币×100", "100", RankDrawItem.DrawState.Unclaimed);
+            new RankDrawItem(drawContent, "2", "10月13日", "金币×60", "60", RankDrawItem.DrawState.Unclaimed);
+            new RankDrawItem(drawContent, "3", "10月12日", "金币×30", "30", RankDrawItem.DrawState.Received);
 
             // 不可领取区（默认隐藏）
             var unable = BoxX(panel, "unableReceive", new Vector2(600, 390), new Vector2(0, -326.5f));
