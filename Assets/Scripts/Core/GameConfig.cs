@@ -139,6 +139,8 @@ namespace Xio.Game
         public int stars = 0;
         public int coins = 100;  // 初始金币（测试/开发用，二次开发可改）
         public int activity = 0;                        // 赛季活跃度（活跃奖励阶梯）
+        public int spirit = 5;                          // 精力（生命值，上限 5，进关扣 1）
+        public float spiritRecover = 0f;                // 精力恢复倒计时（秒），归零 +1 并重置
         [NonSerialized] public Dictionary<int, int> items = new Dictionary<int, int>();      // itemId -> count
         [NonSerialized] public Dictionary<int, int> fairyLevel = new Dictionary<int, int>();  // fairyId -> skill level
         [NonSerialized] public Dictionary<int, int> seasonProgress = new Dictionary<int, int>();

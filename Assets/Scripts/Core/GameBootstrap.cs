@@ -27,7 +27,8 @@ namespace Xio.Game
 
         private void Update()
         {
-            TaskTracker.Tick(Time.deltaTime);   // 在线时长累计
+            TaskTracker.Tick(Time.deltaTime);           // 在线时长累计
+            SaveManager.TickSpiritRecover(Time.deltaTime);   // 精力按时间恢复
         }
 
         public void RunNow()

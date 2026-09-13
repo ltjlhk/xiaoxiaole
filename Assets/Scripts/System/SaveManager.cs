@@ -146,5 +146,59 @@ namespace Xio.Game
         {
             return LevelSegmentModel.IsUnlocked(levelId);  // 全局序：通关上一关后本关开放
         }
+
+        // ===== 精力（生命）系统：上限 5，进关扣 1，每 5 分钟恢复 1 =====
+        public const int SpiritMax = 5;
+        public const float SpiritRecoverInterval = 300f;   // 5 分钟/点
+
+        public static int Spirit
+        {
+            get { return Data.spirit; }
+        }
+
+        /// <summary>进关消耗 1 点精力（为 0 时返回 false，表示精力不足）。</summary>
+        public static bool TryConsumeSpirit()
+        {
+            var d = Data;
+            if (d.spirit <= 0) return false;
+            d.spirit -= 1;
+            d.spiritRecover = 0f;   // 消耗后重新计时
+            Save();
+            return true;
+        }
+
+        /// <summary>精力增加（观看视频补充等）。</summary>
+        public static void AddSpirit(int n)
+        {
+            var d = Data;
+            d.spirit = Mathf.Clamp(d.spirit + n, 0, SpiritMax);
+            if (d.spirit >= SpiritMax) d.spiritRecover = 0f;
+            Save();
+        }
+
+        /// <summary>按帧推进精力恢复（GameBootstrap.Update 调用，满点不累计）。</summary>
+        public static void TickSpiritRecover(float dt)
+        {
+            var d = Data;
+            if (d.spirit >= SpiritMax) { d.spiritRecover = 0f; return; }
+            d.spiritRecover += dt;
+            if (d.spiritRecover >= SpiritRecoverInterval)
+            {
+                d.spiritRecover = 0f;
+                d.spirit += 1;
+                Save();
+            }
+        }
+
+        /// <summary>精力恢复剩余秒数（不足满时显示倒计时）。</summary>
+        public static float SpiritRecoverLeft
+        {
+            get
+            {
+                var d = Data;
+                if (d.spirit >= SpiritMax) return 0f;
+                return Mathf.Max(0f, SpiritRecoverInterval - d.spiritRecover);
+            }
+        }
     }
 }
