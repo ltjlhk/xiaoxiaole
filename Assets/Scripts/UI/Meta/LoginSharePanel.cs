@@ -58,9 +58,9 @@ namespace Xio.UI
             Img(share.transform, "Image", "orange_icon", new Vector2(46, 49), new Vector2(-85.4f, -1.8f));
             Txt(share.transform, "Text", "分享奖励", Fs(60), new Vector2(200, 60), new Vector2(30.7f, 0), true);
 
-            // 继续邀请按钮（默认隐藏）
+            // 继续邀请按钮（默认隐藏；点击进邀请有礼）
             var invite = Btn(bg.transform, "btnInvite", "Btn_02", new Vector2(374, 106), new Vector2(0, -303),
-                () => Debug.Log("[LoginShare] 继续邀请"));
+                () => PanelManager.Instance.Push<InvitePanel>());
             Img(invite.transform, "Image", "orange_icon", new Vector2(46, 49), new Vector2(-85.4f, -1.8f));
             Txt(invite.transform, "Text", "继续邀请", Fs(60), new Vector2(200, 60), new Vector2(30.7f, 0), true);
             invite.gameObject.SetActive(false);

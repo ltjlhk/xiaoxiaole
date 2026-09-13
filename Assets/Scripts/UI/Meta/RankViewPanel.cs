@@ -90,13 +90,24 @@ namespace Xio.UI
             _tipGo.SetActive(false);
             Txt(panel, "txtTimeRefresh", "每周一<color=#25CD00>00:00</color>点刷新周榜", Fs(55), new Vector2(450, 55), new Vector2(0, -306)).gameObject.SetActive(false);
 
-            // 静态演示数据：三个页签各 5 条
+            // 静态演示数据：世界榜含前三领奖台（topRank），其余各 5 条
             int[] scores = { 980, 860, 745, 690, 520 };
             for (int i = 0; i < 3; i++)
             {
                 var content = _scrolls[i].content;
-                for (int n = 0; n < 5; n++)
-                    MakeItem(content, "玩家" + (n + 1), scores[n]);
+                if (i == 0)
+                {
+                    // 前三名领奖台（rank2 左 / rank1 中高 / rank3 右）
+                    TopRankItem.MakePodium(content, new[] { "玩家1", "玩家2", "玩家3" }, new[] { 980, 860, 745 });
+                    // 榜单其余：第 4-8 名
+                    for (int n = 3; n < 8; n++)
+                        MakeItem(content, "玩家" + (n + 1), scores[3] - (n - 3) * 35, n + 1);
+                }
+                else
+                {
+                    for (int n = 0; n < 5; n++)
+                        MakeItem(content, "玩家" + (n + 1), scores[n], n + 1);
+                }
             }
             SelectTab(0);
         }
@@ -115,7 +126,7 @@ namespace Xio.UI
         }
 
         /// <summary>排行条目（dump res_RankItemDaily_12172 1:1）。</summary>
-        private void MakeItem(Transform parent, string name, int score)
+        private void MakeItem(Transform parent, string name, int score, int rank)
         {
             var item = Box(parent, "RankItemDaily", new Vector2(718, 110), Vector2.zero);
             Img(item, "imgMotif", "myrankingboard", new Vector2(645, 110), new Vector2(36.5f, -1.8f));
@@ -126,7 +137,7 @@ namespace Xio.UI
             Img(item, "imgCircle", "rankcommon", new Vector2(72, 72), new Vector2(-206.2f, 1.5f));
             Img(item, "Image (1)", "numbottomplate", new Vector2(150, 37.8f), new Vector2(152.3f, 2.6f));
             Img(item, "Image (2)", "output_icon_1", new Vector2(64, 64), new Vector2(79, 4.6f));
-            Txt(item, "txtRank", (item.GetSiblingIndex() + 1).ToString(), Fs(65), new Vector2(80, 65), new Vector2(-320.2f, 2.7f), true);
+            Txt(item, "txtRank", (rank > 3 ? "第" : "") + rank.ToString(), Fs(65), new Vector2(80, 65), new Vector2(-320.2f, 2.7f), true);
             Txt(item, "txtName", name, Fs(60), new Vector2(200, 60), new Vector2(-62.6f, 4.1f), true);
             Txt(item, "txtScore", score.ToString(), Fs(65), new Vector2(120, 65), new Vector2(165.3f, 3.9f), true);
             Txt(item, "txtLevel", "0", Fs(42.8f), new Vector2(120, 42.8f), new Vector2(-64, -18.8f), true).gameObject.SetActive(false);
