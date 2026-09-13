@@ -169,7 +169,7 @@ namespace Xio.UI
 
         private void ShareReward()
         {
-            PlatformService.Current.Share("就你会消除", "快来一起通关拿奖励！", () =>
+            SharePromptPanel.Show("分享奖励", "分享给好友一起领奖！", "就你会消除", "快来一起通关拿奖励！", () =>
             {
                 SaveManager.AddCoins(500);
                 Refresh();
@@ -254,12 +254,12 @@ namespace Xio.UI
             // ==== 精力条 ====
             var spirit = UIHelper.Button(Root, "imgSpirit", () =>
             {
-                // 看视频补 1 精力（平台层；编辑器直接模拟成功）
-                PlatformService.Current.ShowRewardedAd(ok =>
+                // 看视频补 1 精力（原版：弹视频确认框 → 激励视频）
+                VideoPromptPanel.Show("当前精力不足，看视频获得 1 点精力", () =>
                 {
-                    if (!ok) return;
                     SaveManager.AddSpirit(1);
                     Refresh();
+                    UIHint.Inst.Show("精力 +1");
                 });
             });
             UIHelper.Place((RectTransform)spirit.transform, new Vector2(0f, 1f), new Vector2(152, 59), new Vector2(209, -136));
