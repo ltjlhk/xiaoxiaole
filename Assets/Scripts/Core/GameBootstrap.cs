@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using Xio.UI;
@@ -29,6 +30,15 @@ namespace Xio.Game
             RunNow();
         }
 
+        /// <summary>原版场景名 → 路由语义（对齐原版 BuildSettings：Load/StartScene/MainScene）。
+        /// 静态保留给场景切换（Load → StartScene → MainScene）。</summary>
+        public static string CurrentSceneName =>
+            UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+
+        public static bool IsLoadScene => CurrentSceneName.StartsWith("Load", System.StringComparison.OrdinalIgnoreCase);
+        public static bool IsStartScene => CurrentSceneName.StartsWith("Start", System.StringComparison.OrdinalIgnoreCase);
+        public static bool IsMainScene => CurrentSceneName.StartsWith("Main", System.StringComparison.OrdinalIgnoreCase);
+
         private void Update()
         {
             TaskTracker.Tick(Time.deltaTime);           // 在线时长累计
@@ -40,6 +50,21 @@ namespace Xio.Game
             EnsureBootCanvas();
             AudioManager.Inst.PlayBgm();
 
+            // 原版场景路由：Load→加载页→StartScene；StartScene→主城；MainScene→玩法(续关)
+            if (IsLoadScene)
+            {
+                StartCoroutine(LoadFlow());
+                return;
+            }
+            if (IsMainScene)
+            {
+                var gp = PanelManager.Instance.Push<GameplayPanel>();
+                int cur = SaveManager.Data.maxPassedLevel + 1;
+                gp.StartLevel(cur >= FirstLevel ? cur : StartLevel);
+                return;
+            }
+
+            // 默认/StartScene/Demo：主城
             if (DirectEnter)
             {
                 var gp = PanelManager.Instance.Push<GameplayPanel>();
@@ -50,6 +75,15 @@ namespace Xio.Game
                 PanelManager.Instance.Clear();
                 PanelManager.Instance.Push<MainCityPanel>();
             }
+        }
+
+        /// <summary>原版 Load 场景：先展示 Loading 面板，随后切 StartScene（主城）。</summary>
+        private IEnumerator LoadFlow()
+        {
+            var loading = PanelManager.Instance.Push<PuzzleLoadingPanel>();
+            yield return new WaitForSeconds(1.2f);
+            if (loading != null && loading.IsVisible)
+                UnityEngine.SceneManagement.SceneManager.LoadScene("StartScene");
         }
 
         /// <summary>主城/关卡共用一套竖屏 Canvas（750x1334）。</summary>

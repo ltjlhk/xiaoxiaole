@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace Xio.UI
 {
@@ -12,7 +13,15 @@ namespace Xio.UI
         private readonly List<UIPanel> _stack = new List<UIPanel>();
         private RectTransform _canvasRoot;
 
-        /// <summary>统一 Canvas 根（首次使用时查找场景中已有 Canvas）。</summary>
+        /// <summary>切场景后旧 Canvas/面板被销毁，重置缓存并在新场景重建。</summary>
+        public void ResetForScene()
+        {
+            _canvasRoot = null;
+            _stack.Clear();
+        }
+
+        /// <summary>统一 Canvas 根（首次使用时查找场景中已有 Canvas）。
+        /// 切场景后缓存失效时自动重查，避免引用已销毁对象。</summary>
         public RectTransform CanvasRoot
         {
             get

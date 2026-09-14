@@ -14,14 +14,28 @@ PuzzleCut/PuzzleStart/PuzzleShow 关卡配置、3D 花牌堆场景、Spine 特�
 ## 快速开始
 
 1. 用 Unity 2022.3.62f3c1 打开本目录（`c:\xiaoxiaole\game`）
-2. 打开场景 `Assets/Scenes/Demo.unity`
-3. 入口：`Assets/Scripts/Core/GameBootstrap.cs`（挂场景根，`RunNow()` 启动）
-4. 点击 Play 直接进入 101 关玩法（编辑器使用 `PlaceholderPlatform` 模拟微信能力）
+2. 打开场景 `Assets/Scenes/StartScene.unity`（主城）并点击 Play，或 `MainScene.unity` 直接续关进玩法
+3. 入口：`Assets/Scripts/Core/GameBootstrap.cs`（挂场景根，按场景名自动路由：Load→加载页→StartScene，MainScene→续关玩法）
+4. 编辑器使用 `PlaceholderPlatform` 模拟微信能力；需要直接进指定关卡调试可设 `GameBootstrap.DirectEnter=true` + `StartLevel`
 
 > 编辑器批处理验证（无需开图形界面）：
 > `tools/compile_check.ps1`（编译预验证）
-> BatchRun：`Unity -batchmode -quit -projectPath . -executeMethod Xio.EditorTools.BatchRun.Run`
-> 玩法截图：`Unity -batchmode -quit -projectPath . -executeMethod Xio.EditorTools.DiagShot.Run`（输出 `C:\xiaoxiaole\diag_shot.png`）
+> `Xio.EditorTools.SceneSmoke.Run`（3 场景路由冒烟）
+> 玩法截图：`Xio.EditorTools.DiagShot.Run`（输出 `C:\xiaoxiaole\diag_shot.png`）
+
+## 场景结构（对齐原版 BuildSettings）
+
+原版微信小游戏为 **3 场景 + Addressables 预制体**（catalog 考古确证），本工程同名复刻：
+
+| 场景 | 原版对应 | 内容 |
+|---|---|---|
+| `Assets/Scenes/Load.unity` | level0 `Scenes/Load` | 加载页 → 自动切主城 |
+| `Assets/Scenes/StartScene.unity` | level1 `Scenes/StartScene` | 主城 MainCityPanel |
+| `Assets/Scenes/MainScene.unity` | level2 `Scenes/MainScene` | 玩法（续关进 GameplayPanel） |
+
+另外工程内含 **78 个真实 prefab 资产**（`Assets/Prefabs/UI/*` 46 个面板 + `Assets/Prefabs/Model/*` 32 个 3D 模型），
+与原版 Addressables 目录一一对应；游戏运行时面板仍由代码按原版 prefab 坐标动态构建（UIPanel 基类），
+prefab 资产用于 Project 窗口结构对齐与二次开发参考。
 
 ## 目录结构
 
