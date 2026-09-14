@@ -6,7 +6,7 @@ using Xio.Game;
 
 namespace Xio.UI
 {
-    /// <summary>排行榜主页（dump res_RankView_12521 1:1）：全服/周榜/好友三页签 + 我的排名栏 + 演示条目。</summary>
+    /// <summary>排行榜主页（dump res_RankView_12521 1:1）：每日/全服/周榜/好友四页签 + 我的排名栏 + 演示条目。</summary>
     public sealed class RankViewPanel : UIPanel
     {
         /// <summary>关闭回调（由外部注入；未注入时关闭按钮走 Pop）。</summary>
@@ -14,6 +14,7 @@ namespace Xio.UI
 
         private readonly List<ScrollRect> _scrolls = new List<ScrollRect>();
         private GameObject _tipGo;
+        private Text _timeGo;
 
         protected override bool BlockClick => true;
 
@@ -35,13 +36,16 @@ namespace Xio.UI
             spine.localScale = new Vector3(1.1f, 1.1f, 1f);
             Box(spine, "Renderer0", new Vector2(100, 100), Vector2.zero);
 
-            // 三页签按钮（世界 0 / 周榜 -187 / 好友 187）
-            var tabWorld = Btn(panel, "btnBgWorld", null, new Vector2(179, 51), new Vector2(0, 413), () => SelectTab(0));
-            Img(tabWorld.transform, "Image", "quanfubang", new Vector2(142, 46), Vector2.zero);
-            var tabWeek = Btn(panel, "btnBgWeek", null, new Vector2(179, 51), new Vector2(-187, 413), () => SelectTab(1));
-            Img(tabWeek.transform, "Image", "zhoubang", new Vector2(142, 46), Vector2.zero);
-            var tabFriend = Btn(panel, "btnBgFriend", null, new Vector2(179, 51), new Vector2(187, 413), () => SelectTab(2));
-            Img(tabFriend.transform, "Image (1)", "haoyoubang", new Vector2(142, 46), Vector2.zero);
+            // 四页签按钮（每日 -262.5 / 周榜 -87.5 / 世界 87.5 / 好友 262.5）
+            // 注：原版为三页签（周-187/世界0/好友187，宽179），每日页签为原版 RankItemDaily 补入，按钮改 150 宽四等分
+            var tabDaily = Btn(panel, "btnBgDaily", null, new Vector2(150, 51), new Vector2(-262.5f, 413), () => SelectTab(3));
+            Txt(tabDaily.transform, "Text", "每日", Fs(60), new Vector2(140, 46), Vector2.zero, true);
+            var tabWorld = Btn(panel, "btnBgWorld", null, new Vector2(150, 51), new Vector2(-87.5f, 413), () => SelectTab(0));
+            Img(tabWorld.transform, "Image", "quanfubang", new Vector2(140, 46), Vector2.zero);
+            var tabWeek = Btn(panel, "btnBgWeek", null, new Vector2(150, 51), new Vector2(87.5f, 413), () => SelectTab(1));
+            Img(tabWeek.transform, "Image", "zhoubang", new Vector2(140, 46), Vector2.zero);
+            var tabFriend = Btn(panel, "btnBgFriend", null, new Vector2(150, 51), new Vector2(262.5f, 413), () => SelectTab(2));
+            Img(tabFriend.transform, "Image (1)", "haoyoubang", new Vector2(140, 46), Vector2.zero);
 
             // 关闭
             Btn(panel, "btnClose", "tcclose_01", new Vector2(50, 49), new Vector2(301, 493), OnCloseClick);
@@ -65,13 +69,16 @@ namespace Xio.UI
                 () => Debug.Log("[RankView] 邀请好友"));
             Txt(share.transform, "Text (Legacy)", "邀请好友", Fs(75), new Vector2(278, 75), Vector2.zero, true);
 
-            // 三个列表（世界 / 好友 / 周）
+            // 四个列表（每日 / 世界 / 周榜 / 好友）
             _scrolls.Clear();
+            _scrolls.Add(MakeScroll(panel, "ScrollViewDaily", new Vector2(590, 630.5f), new Vector2(0, 6)));
             _scrolls.Add(MakeScroll(panel, "ScrollViewWorld", new Vector2(590, 630.5f), new Vector2(0, 6)));
             _scrolls.Add(MakeScroll(panel, "ScrollViewWeek", new Vector2(590, 600), new Vector2(0, 22)));
             _scrolls.Add(MakeScroll(panel, "ScrollViewFirend", new Vector2(590, 630.5f), new Vector2(0, 6)));
-            _scrolls[1].gameObject.SetActive(false);
+            _scrolls[0].gameObject.SetActive(false);
+            _scrolls[1].gameObject.SetActive(true);
             _scrolls[2].gameObject.SetActive(false);
+            _scrolls[3].gameObject.SetActive(false);
 
             // RawImage 占位（默认隐藏）
             var body = Box(panel, "RawBody", new Vector2(590, 630), new Vector2(-295, 321.2f));
@@ -88,15 +95,23 @@ namespace Xio.UI
             // 好友未授权提示（默认隐藏，切好友页签时显示）
             _tipGo = Txt(panel, "txtTip", "好友排名未授权，无法查看", Fs(150), new Vector2(450, 150), new Vector2(0, -34.5f)).gameObject;
             _tipGo.SetActive(false);
-            Txt(panel, "txtTimeRefresh", "每周一<color=#25CD00>00:00</color>点刷新周榜", Fs(55), new Vector2(450, 55), new Vector2(0, -306)).gameObject.SetActive(false);
+            _timeGo = Txt(panel, "txtTimeRefresh", "每周一<color=#25CD00>00:00</color>点刷新周榜", Fs(55), new Vector2(450, 55), new Vector2(0, -306));
+            _timeGo.gameObject.SetActive(false);
 
-            // 排行榜数据：世界=领奖台+RankItemWorld / 周=RankItemWeek / 好友=FameRankItem
+            // 排行榜数据：每日=RankItemDaily / 世界=领奖台+RankItemWorld / 周=RankItemWeek / 好友=FameRankItem
             string nick = Xio.Platform.PlatformService.Current.Nickname;
             int[] scores = { 980, 860, 745, 690, 520 };
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 4; i++)
             {
                 var content = _scrolls[i].content;
                 if (i == 0)
+                {
+                    // 每日榜：RankItemDaily 行（含自己）
+                    MakeDailyItem(content, 1, nick, SaveManager.Data.stars);
+                    for (int n = 0; n < 6; n++)
+                        MakeDailyItem(content, n + 2, "玩家" + (n + 2), scores[n % 5] - n * 30);
+                }
+                else if (i == 1)
                 {
                     // 前三名领奖台（rank2 左 / rank1 中高 / rank3 右）
                     TopRankItem.MakePodium(content, new[] { "玩家1", "玩家2", "玩家3" }, new[] { 980, 860, 745 });
@@ -104,7 +119,7 @@ namespace Xio.UI
                     for (int n = 3; n < 8; n++)
                         MakeWorldItem(content, n + 1, "玩家" + (n + 1), scores[3] - (n - 3) * 35, 3 - n / 4);
                 }
-                else if (i == 1)
+                else if (i == 2)
                 {
                     // 周榜：RankItemWeek 行
                     for (int n = 0; n < 5; n++)
@@ -122,14 +137,15 @@ namespace Xio.UI
             // 提交本机分数（好友榜）
             Xio.Platform.PlatformService.Current.SubmitScore(SaveManager.Data.stars);
             Xio.Platform.PlatformService.Current.FetchFriendRanking(null);
-            SelectTab(0);
+            SelectTab(1);
         }
 
         private void SelectTab(int idx)
         {
             for (int i = 0; i < _scrolls.Count; i++)
                 if (_scrolls[i] != null) _scrolls[i].gameObject.SetActive(i == idx);
-            if (_tipGo != null) _tipGo.SetActive(idx == 2);
+            if (_tipGo != null) _tipGo.SetActive(idx == 3);
+            if (_timeGo != null) _timeGo.gameObject.SetActive(idx == 2);
         }
 
         private void OnCloseClick()
@@ -141,6 +157,10 @@ namespace Xio.UI
         /// <summary>世界榜条目（res_RankItemWorld_12169）。</summary>
         private void MakeWorldItem(Transform parent, int rank, string name, int score, int level)
             => new RankItemWorld(parent, rank, name, score, level);
+
+        /// <summary>每日榜条目（res_RankItemDaily_12172）。</summary>
+        private void MakeDailyItem(Transform parent, int rank, string name, int score)
+            => new RankItemDaily(parent, rank, name, score);
 
         /// <summary>周榜条目（res_RankItemWeek_12170）。</summary>
         private void MakeWeekItem(Transform parent, int rank, string name, int score, int level)
